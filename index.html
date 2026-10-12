@@ -41,6 +41,7 @@
   }
   h1, h2, h3, h4 { margin: 0; font-weight: 700; }
   button { font-family: inherit; }
+  [hidden] { display: none !important; }
 
   /* --- auth gate --- */
   .auth-wrap {
@@ -469,7 +470,7 @@
 
     var p = authMode === "login"
       ? sb.auth.signInWithPassword({ email: email, password: pass })
-      : sb.auth.signUp({ email: email, password: pass });
+      : sb.auth.signUp({ email: email, password: pass, options: { emailRedirectTo: location.origin + location.pathname } });
 
     p.then(function (res) {
       btn.disabled = false;
