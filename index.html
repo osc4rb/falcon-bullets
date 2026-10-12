@@ -1,5 +1,6 @@
 <title>Falcon Bullets</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #0a0b0f;
@@ -41,23 +42,41 @@
   h1, h2, h3, h4 { margin: 0; font-weight: 700; }
   button { font-family: inherit; }
 
+  /* --- auth gate --- */
+  .auth-wrap {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px;
+  }
+  .auth-card {
+    width: 100%; max-width: 380px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+    padding: 28px 26px;
+  }
+  .auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .auth-brand .brand-text strong { font-size: 1.15rem; font-weight: 800; letter-spacing: -.02em; }
+  .auth-brand .brand-text small { color: var(--faint); font-size: .74rem; font-weight: 500; }
+  .auth-tabs { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 4px; margin-bottom: 20px; }
+  .auth-tab {
+    flex: 1; text-align: center; cursor: pointer; border: none; background: transparent;
+    color: var(--muted); font-weight: 600; font-size: .88rem; padding: 9px; border-radius: 8px;
+  }
+  .auth-tab.active { background: var(--accent); color: #fff; }
+  .auth-field { margin-bottom: 14px; }
+  .auth-field .lab { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  .auth-msg { font-size: .82rem; border-radius: 9px; padding: 9px 12px; margin-bottom: 14px; }
+  .auth-msg.err { background: rgba(239,68,68,.13); border: 1px solid rgba(239,68,68,.4); color: #fca5a5; }
+  .auth-msg.ok { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.4); color: #86efac; }
+  .auth-note { font-size: .76rem; color: var(--faint); margin-top: 14px; text-align: center; }
+
   .topbar {
-    position: sticky;
-    top: env(safe-area-inset-top, 0px);
-    z-index: 30;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 20px;
-    background: rgba(10, 11, 15, .82);
-    backdrop-filter: blur(12px);
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
+    display: flex; align-items: center; gap: 14px; padding: 14px 20px;
+    background: rgba(10, 11, 15, .82); backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--line);
   }
   .logo {
-    width: 36px; height: 36px; flex: none;
-    display: grid; place-items: center;
-    border-radius: 10px;
-    background: linear-gradient(145deg, var(--accent), #1e55d6);
+    width: 36px; height: 36px; flex: none; display: grid; place-items: center;
+    border-radius: 10px; background: linear-gradient(145deg, var(--accent), #1e55d6);
     box-shadow: 0 4px 14px rgba(47, 109, 246, .35);
   }
   .logo svg { width: 20px; height: 20px; }
@@ -65,59 +84,44 @@
   .brand-text strong { font-size: 1.05rem; font-weight: 800; letter-spacing: -.02em; }
   .brand-text small { color: var(--faint); font-size: .72rem; font-weight: 500; }
   .topbar-spacer { flex: 1; }
+  .topbar-user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .topbar-email { font-size: .78rem; color: var(--muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-stat {
-    font-size: .8rem; color: var(--muted);
-    background: var(--surface-2); border: 1px solid var(--line);
-    padding: 7px 13px; border-radius: 999px; font-variant-numeric: tabular-nums;
+    font-size: .8rem; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px; font-variant-numeric: tabular-nums;
   }
   .topbar-stat b { color: var(--fg); }
 
   .layout {
-    max-width: 1140px;
-    margin: 0 auto;
-    padding: 22px 20px 72px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
+    max-width: 1140px; margin: 0 auto; padding: 22px 20px 72px;
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px;
   }
   @media (min-width: 900px) {
     .layout { grid-template-columns: 400px minmax(0, 1fr); align-items: start; }
     .col-form { position: sticky; top: 86px; }
   }
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--r-card);
-  }
-  .card-head {
-    display: flex; align-items: center; gap: 10px;
-    padding: 16px 18px 0;
-  }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px 0; }
   .card-head h2 { font-size: 1rem; letter-spacing: -.01em; }
   .card-head .sub { color: var(--faint); font-size: .78rem; margin-left: auto; }
   .card-body { padding: 16px 18px 18px; }
 
   .field { margin-bottom: 14px; }
   .field:last-child { margin-bottom: 0; }
-  .lab {
-    display: block; font-size: .75rem; font-weight: 600;
-    color: var(--muted); margin-bottom: 6px;
-  }
+  .lab { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
   .lab .opt { color: var(--faint); font-weight: 400; }
   .hint { font-size: .74rem; color: var(--faint); margin-top: 6px; }
 
   input, textarea, select {
-    width: 100%; font: inherit; font-size: .9rem;
-    color: var(--fg); background: var(--surface-2);
+    width: 100%; font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface-2);
     border: 1px solid var(--line-2); border-radius: var(--r-field);
     padding: 10px 12px; transition: border-color .12s, box-shadow .12s;
   }
   textarea { resize: vertical; min-height: 54px; line-height: 1.45; }
   input::placeholder, textarea::placeholder { color: var(--faint); }
   input:focus, textarea:focus, select:focus {
-    outline: none; border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(47, 109, 246, .22);
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 109, 246, .22);
   }
   select { appearance: none; cursor: pointer;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23949cb0' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
@@ -130,23 +134,14 @@
   .builder textarea { min-height: 42px; }
   .mini-lab { font-size: .72rem; color: var(--faint); margin-bottom: 4px; font-weight: 500; }
 
-  .opts-row {
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-    margin-top: 12px; font-size: .82rem; color: var(--muted);
-  }
+  .opts-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: .82rem; color: var(--muted); }
   .check { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
   .check input { width: auto; accent-color: var(--accent); }
   .limit-field { display: inline-flex; align-items: center; gap: 7px; }
   .limit-field input { width: 72px; padding: 6px 8px; text-align: center; font-variant-numeric: tabular-nums; }
 
-  .preview {
-    margin-top: 14px; border: 1px solid var(--line-2);
-    border-radius: var(--r-field); overflow: hidden; background: var(--surface-2);
-  }
-  .preview-head {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 12px; background: var(--surface-3); border-bottom: 1px solid var(--line-2);
-  }
+  .preview { margin-top: 14px; border: 1px solid var(--line-2); border-radius: var(--r-field); overflow: hidden; background: var(--surface-2); }
+  .preview-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--surface-3); border-bottom: 1px solid var(--line-2); }
   .preview-head span { font-size: .72rem; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
   .count { font-size: .74rem; color: var(--faint); font-variant-numeric: tabular-nums; }
   .count.over { color: var(--danger); font-weight: 700; }
@@ -156,19 +151,20 @@
   .preview.over .preview-head { border-bottom-color: var(--danger); }
 
   .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-    cursor: pointer; font-size: .86rem; font-weight: 600;
-    border-radius: 10px; padding: 10px 16px; border: 1px solid transparent;
-    transition: background .12s, border-color .12s, color .12s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;
+    font-size: .86rem; font-weight: 600; border-radius: 10px; padding: 10px 16px;
+    border: 1px solid transparent; transition: background .12s, border-color .12s, color .12s;
   }
   .btn svg { width: 15px; height: 15px; }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary[disabled] { opacity: .6; cursor: default; }
   .btn-ghost { background: transparent; color: var(--muted); border-color: var(--line-2); }
   .btn-ghost:hover { background: var(--surface-2); color: var(--fg); }
   .btn-sm { padding: 7px 11px; font-size: .8rem; border-radius: 9px; }
   .btn-danger { color: var(--danger); border-color: transparent; background: transparent; }
   .btn-danger:hover { background: rgba(239, 68, 68, .14); }
+  .btn-block { width: 100%; }
   .form-actions { display: flex; gap: 9px; margin-top: 16px; flex-wrap: wrap; }
 
   .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -180,10 +176,8 @@
   .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
   @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
   .tile {
-    text-align: left; cursor: pointer;
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 13px; padding: 12px 13px;
-    border-top: 3px solid var(--tc);
+    text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 13px; padding: 12px 13px; border-top: 3px solid var(--tc);
     transition: background .12s, border-color .12s;
   }
   .tile:hover { background: var(--surface-2); }
@@ -198,62 +192,36 @@
 
   .list { display: grid; gap: 12px; }
   .entry {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; padding: 15px 16px;
-    border-left: 3px solid var(--ec, var(--c-other));
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 15px 16px; border-left: 3px solid var(--ec, var(--c-other));
   }
   .entry-top { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
   .pill {
-    font-size: .68rem; font-weight: 700; letter-spacing: .02em;
-    padding: 3px 9px; border-radius: 999px;
+    font-size: .68rem; font-weight: 700; letter-spacing: .02em; padding: 3px 9px; border-radius: 999px;
     background: color-mix(in srgb, var(--ec) 18%, transparent);
     color: color-mix(in srgb, var(--ec) 72%, white);
     border: 1px solid color-mix(in srgb, var(--ec) 34%, transparent);
   }
   .entry-date { margin-left: auto; font-size: .76rem; color: var(--faint); font-variant-numeric: tabular-nums; }
   .entry-title { font-size: 1rem; font-weight: 700; letter-spacing: -.01em; margin-bottom: 8px; }
-  .entry-bullet {
-    background: var(--surface-2); border: 1px solid var(--line);
-    border-radius: 10px; padding: 10px 12px; font-size: .9rem;
-    white-space: pre-wrap; word-break: break-word;
-  }
+  .entry-bullet { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .9rem; white-space: pre-wrap; word-break: break-word; }
   .entry-notes { font-size: .84rem; color: var(--muted); margin-top: 9px; white-space: pre-wrap; word-break: break-word; }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
   .tag { font-size: .72rem; color: var(--accent-hover); background: rgba(47, 109, 246, .12); padding: 2px 9px; border-radius: 6px; }
   .entry-actions { display: flex; gap: 7px; margin-top: 13px; }
 
-  .empty {
-    text-align: center; padding: 48px 20px; color: var(--faint);
-    border: 1px dashed var(--line-2); border-radius: 14px;
-  }
+  .empty { text-align: center; padding: 48px 20px; color: var(--faint); border: 1px dashed var(--line-2); border-radius: 14px; }
   .empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: .6; }
   .empty h3 { color: var(--muted); font-size: 1rem; margin-bottom: 6px; }
 
-  .device { margin-top: 20px; }
-  .device > summary {
-    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 9px;
-    font-size: .82rem; font-weight: 600; color: var(--muted);
-    padding: 12px 15px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  .import-banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-radius: 12px; padding: 12px 15px; margin-bottom: 16px; font-size: .85rem;
   }
-  .device > summary::-webkit-details-marker { display: none; }
-  .device > summary svg { width: 15px; height: 15px; }
-  .device > summary .chev { margin-left: auto; transition: transform .2s; }
-  .device[open] > summary .chev { transform: rotate(180deg); }
-  .device-body {
-    border: 1px solid var(--line); border-top: none; border-radius: 0 0 12px 12px;
-    padding: 16px; display: grid; gap: 18px; margin-top: -1px;
-  }
-  @media (min-width: 620px) { .device-body { grid-template-columns: 1fr 1fr; } }
-  .device-body h4 { font-size: .82rem; margin-bottom: 6px; }
-  .device-body p { font-size: .78rem; color: var(--faint); margin: 0 0 9px; }
-  .device-body textarea { min-height: 84px; font-size: .8rem; }
-  .file-row { margin-top: 9px; display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
-  input[type=file] { font-size: .78rem; color: var(--muted); border: none; background: none; padding: 0; }
-
-  .storage-note {
-    font-size: .82rem; padding: 11px 14px; border-radius: 11px; margin-bottom: 16px;
-    background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .4); color: #fcd9a0;
-  }
+  .import-banner .msg { flex: 1 1 200px; min-width: 0; }
+  .import-banner .msg b { color: var(--fg); }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
@@ -261,145 +229,147 @@
     background: var(--fg); color: var(--bg); font-weight: 600; font-size: .86rem;
     padding: 11px 20px; border-radius: 999px; opacity: 0; pointer-events: none;
     transition: opacity .18s, transform .18s; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    max-width: 90vw; text-align: center;
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
-<header class="topbar">
-  <div class="logo">
-    <svg viewBox="0 0 24 24" fill="none"><path d="M3 7 L12 10.5 L21 7 L12 15 Z" fill="#fff"/><path d="M12 13.5 V21" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
-  </div>
-  <div class="brand-text"><strong>Falcon Bullets</strong><small>Accomplishment log</small></div>
-  <div class="topbar-spacer"></div>
-  <div class="topbar-stat"><b id="totalStat">0</b> logged</div>
-</header>
-
-<main class="layout">
-  <div class="col-form">
-    <form class="card" id="entryForm" autocomplete="off">
-      <div class="card-head"><h2 id="formTitle">New bullet</h2><span class="sub" id="formMode">add to log</span></div>
-      <div class="card-body">
-        <div class="row2">
-          <div class="field">
-            <label class="lab" for="f-date">Date</label>
-            <input type="date" id="f-date" required>
-            <div class="hint">Log only — not on the form.</div>
-          </div>
-          <div class="field">
-            <label class="lab" for="f-cat">Area</label>
-            <select id="f-cat" required></select>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="lab" for="f-title">Short name</label>
-          <input type="text" id="f-title" maxlength="90" placeholder="Led squadron night land-nav">
-        </div>
-
-        <div class="field">
-          <label class="lab">Build the bullet</label>
-          <div class="builder">
-            <div>
-              <div class="mini-lab">Action — what you did</div>
-              <textarea id="f-action" placeholder="Led 12-cadet team through 4-hr night land-nav course"></textarea>
-            </div>
-            <div>
-              <div class="mini-lab">Impact — why it mattered</div>
-              <textarea id="f-impact" placeholder="sharpened squadron field skills before summer field training"></textarea>
-            </div>
-            <div>
-              <div class="mini-lab">Result — the outcome</div>
-              <textarea id="f-result" placeholder="100% passed; unit rated top 3 of 40"></textarea>
-            </div>
-          </div>
-          <div class="opts-row">
-            <label class="check"><input type="checkbox" id="f-dash" checked> Lead with dash</label>
-            <span class="limit-field">Limit <input type="number" id="f-limit" min="0" step="1" inputmode="numeric"></span>
-          </div>
-        </div>
-
-        <div class="preview" id="previewBox">
-          <div class="preview-head"><span>PREVIEW</span><span class="count" id="count">0</span></div>
-          <div class="preview-body empty" id="previewBody">Fill in the bullet to see it here</div>
-        </div>
-
-        <div class="field" style="margin-top:14px">
-          <label class="lab" for="f-notes">Notes to self <span class="opt">· optional</span></label>
-          <textarea id="f-notes" placeholder="Numbers, names, context you might forget later"></textarea>
-        </div>
-        <div class="field">
-          <label class="lab" for="f-tags">Tags <span class="opt">· comma-separated</span></label>
-          <input type="text" id="f-tags" placeholder="leadership, award-worthy">
-        </div>
-
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" id="saveBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            <span id="saveLabel">Add to log</span>
-          </button>
-          <button type="button" class="btn btn-ghost" id="cancelEdit" hidden>Cancel</button>
-          <button type="reset" class="btn btn-ghost">Clear</button>
-        </div>
+<!-- Logged-out view -->
+<div class="auth-wrap" id="authGate" hidden>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 7 L12 10.5 L21 7 L12 15 Z" fill="#fff"/><path d="M12 13.5 V21" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+      <div class="brand-text"><strong>Falcon Bullets</strong><small>Accomplishment log</small></div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" type="button">Log in</button>
+      <button class="auth-tab" id="tabSignup" type="button">Sign up</button>
+    </div>
+    <form id="authForm">
+      <div id="authMsg" class="auth-msg" hidden></div>
+      <div class="auth-field">
+        <label class="lab" for="au-email">Academy email</label>
+        <input type="email" id="au-email" placeholder="you@afacademy.edu" autocomplete="email" required>
       </div>
+      <div class="auth-field">
+        <label class="lab" for="au-pass">Password</label>
+        <input type="password" id="au-pass" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="authSubmit">Log in</button>
     </form>
+    <div class="auth-note" id="authNote">Use your @afacademy.edu email. Your bullets sync to every device you log in on.</div>
   </div>
+</div>
 
-  <div class="col-log">
-    <div class="storage-note" id="storageNote" hidden>This browser is blocking saved data (private window?), so entries won't stick after you close the page.</div>
-
-    <div class="toolbar">
-      <div class="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="search" placeholder="Search bullets, tags…">
-      </div>
-      <select id="sortBy" aria-label="Sort">
-        <option value="date-desc">Newest</option>
-        <option value="date-asc">Oldest</option>
-        <option value="area">By area</option>
-      </select>
+<!-- Logged-in view -->
+<div id="appRoot" hidden>
+  <header class="topbar">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 7 L12 10.5 L21 7 L12 15 Z" fill="#fff"/><path d="M12 13.5 V21" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="brand-text"><strong>Falcon Bullets</strong><small>Accomplishment log</small></div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-user">
+      <span class="topbar-stat"><b id="totalStat">0</b> logged</span>
+      <span class="topbar-email" id="userEmail"></span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Log out</button>
     </div>
+  </header>
 
-    <div class="tiles" id="tiles"></div>
+  <main class="layout">
+    <div class="col-form">
+      <form class="card" id="entryForm" autocomplete="off">
+        <div class="card-head"><h2 id="formTitle">New bullet</h2><span class="sub" id="formMode">add to log</span></div>
+        <div class="card-body">
+          <div class="row2">
+            <div class="field">
+              <label class="lab" for="f-date">Date</label>
+              <input type="date" id="f-date" required>
+              <div class="hint">Log only — not on the form.</div>
+            </div>
+            <div class="field">
+              <label class="lab" for="f-cat">Area</label>
+              <select id="f-cat" required></select>
+            </div>
+          </div>
 
-    <div class="log-head">
-      <div class="cnt"><b id="shownCount">0</b> <span id="shownNoun">entries</span></div>
-      <button class="btn btn-ghost btn-sm" id="copyAll">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy all shown
-      </button>
-    </div>
+          <div class="field">
+            <label class="lab" for="f-title">Short name</label>
+            <input type="text" id="f-title" maxlength="90" placeholder="Led squadron night land-nav">
+          </div>
 
-    <div class="list" id="list"></div>
+          <div class="field">
+            <label class="lab">Build the bullet</label>
+            <div class="builder">
+              <div><div class="mini-lab">Action — what you did</div><textarea id="f-action" placeholder="Led 12-cadet team through 4-hr night land-nav course"></textarea></div>
+              <div><div class="mini-lab">Impact — why it mattered</div><textarea id="f-impact" placeholder="sharpened squadron field skills before summer field training"></textarea></div>
+              <div><div class="mini-lab">Result — the outcome</div><textarea id="f-result" placeholder="100% passed; unit rated top 3 of 40"></textarea></div>
+            </div>
+            <div class="opts-row">
+              <label class="check"><input type="checkbox" id="f-dash" checked> Lead with dash</label>
+              <span class="limit-field">Limit <input type="number" id="f-limit" min="0" step="1" inputmode="numeric"></span>
+            </div>
+          </div>
 
-    <details class="device">
-      <summary>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-        Move to another device
-        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
-      </summary>
-      <div class="device-body">
-        <div>
-          <h4>From this device</h4>
-          <p>Copy this code, then paste it into Falcon Bullets on your other device.</p>
-          <textarea id="backupText" readonly aria-label="Your log code" placeholder="Your code shows up here once you've logged at least one bullet."></textarea>
-          <div class="file-row"><button class="btn btn-primary btn-sm" id="copyBackup">Copy my log</button></div>
-        </div>
-        <div>
-          <h4>Onto this device</h4>
-          <p>Paste a code from your other device, or pick a file.</p>
-          <textarea id="restoreText" placeholder="Paste your log code here…" aria-label="Incoming log code"></textarea>
-          <div class="file-row"><input type="file" id="restoreFile" accept="application/json,.json,.txt"></div>
-          <div class="file-row">
-            <button class="btn btn-ghost btn-sm" id="restoreMerge">Merge in</button>
-            <button class="btn btn-danger btn-sm" id="restoreReplace">Replace all</button>
+          <div class="preview" id="previewBox">
+            <div class="preview-head"><span>PREVIEW</span><span class="count" id="count">0</span></div>
+            <div class="preview-body empty" id="previewBody">Fill in the bullet to see it here</div>
+          </div>
+
+          <div class="field" style="margin-top:14px">
+            <label class="lab" for="f-notes">Notes to self <span class="opt">· optional</span></label>
+            <textarea id="f-notes" placeholder="Numbers, names, context you might forget later"></textarea>
+          </div>
+          <div class="field">
+            <label class="lab" for="f-tags">Tags <span class="opt">· comma-separated</span></label>
+            <input type="text" id="f-tags" placeholder="leadership, award-worthy">
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="saveBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              <span id="saveLabel">Add to log</span>
+            </button>
+            <button type="button" class="btn btn-ghost" id="cancelEdit" hidden>Cancel</button>
+            <button type="reset" class="btn btn-ghost">Clear</button>
           </div>
         </div>
+      </form>
+    </div>
+
+    <div class="col-log">
+      <div class="import-banner" id="importBanner" hidden>
+        <div class="msg"><b id="importCount">0</b> bullets are saved on this device. Add them to your account?</div>
+        <button class="btn btn-primary btn-sm" id="importYes">Import</button>
+        <button class="btn btn-ghost btn-sm" id="importNo">No thanks</button>
       </div>
-    </details>
-  </div>
-</main>
+
+      <div class="toolbar">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="search" placeholder="Search bullets, tags…">
+        </div>
+        <select id="sortBy" aria-label="Sort">
+          <option value="date-desc">Newest</option>
+          <option value="date-asc">Oldest</option>
+          <option value="area">By area</option>
+        </select>
+      </div>
+
+      <div class="tiles" id="tiles"></div>
+
+      <div class="log-head">
+        <div class="cnt"><b id="shownCount">0</b> <span id="shownNoun">entries</span></div>
+        <button class="btn btn-ghost btn-sm" id="copyAll">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy all shown
+        </button>
+      </div>
+
+      <div class="list" id="list"></div>
+    </div>
+  </main>
+</div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -407,8 +377,12 @@
 (function () {
   "use strict";
 
-  var KEY = "falconBullets.v1";
+  var SUPABASE_URL = "https://rfpkukgaiuguhgkdzgqk.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_oy_DMlnMysY0J1oBkAZEuw_OWGhd_Xh";
+  var EMAIL_DOMAIN = "@afacademy.edu";
+
   var PREF = "falconBullets.pref";
+  var LOCAL = "falconBullets.v1";
   var DEFAULT_LIMIT = 350;
 
   var CATS = [
@@ -424,54 +398,31 @@
   }
 
   var $ = function (s) { return document.querySelector(s); };
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  function load() {
-    try { var a = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(a) ? a : []; }
-    catch (e) { return []; }
-  }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(store)); }
-    catch (e) { $("#storageNote").hidden = false; }
-  }
-  function loadPref() { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch (e) { return {}; } }
-  function savePref() { try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch (e) {} }
-
-  var store = load();
-  var pref = loadPref();
-  if (pref.limit === undefined) pref.limit = DEFAULT_LIMIT;
-  try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); }
-  catch (e) { $("#storageNote").hidden = false; }
-
+  var store = [];
+  var currentUser = null;
+  var loadedFor = null;
   var activeCat = "";
   var editingId = null;
+  var authMode = "login";
 
-  var F = {
-    date: $("#f-date"), cat: $("#f-cat"), title: $("#f-title"),
-    action: $("#f-action"), impact: $("#f-impact"), result: $("#f-result"),
-    notes: $("#f-notes"), tags: $("#f-tags"), dash: $("#f-dash"), limit: $("#f-limit")
-  };
-  CATS.forEach(function (c) {
-    var o = document.createElement("option");
-    o.value = c.name; o.textContent = c.name; F.cat.appendChild(o);
-  });
+  function loadPref() { try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch (e) { return {}; } }
+  function savePref() { try { localStorage.setItem(PREF, JSON.stringify(pref)); } catch (e) {} }
+  var pref = loadPref();
+  if (pref.limit === undefined) pref.limit = DEFAULT_LIMIT;
 
   function getLimit() { var n = parseInt(pref.limit, 10); return (isFinite(n) && n > 0) ? n : 0; }
   function todayISO() {
     var d = new Date();
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
-  F.dash.checked = pref.dash !== false;
-  F.limit.value = getLimit() || "";
-  F.date.value = todayISO();
-
   function buildBullet(a, i, r, dash) {
     var parts = [a, i, r].map(function (x) { return (x || "").trim(); }).filter(Boolean);
     return parts.length ? (dash ? "– " : "") + parts.join("; ") : "";
   }
   function esc(s) {
-    return (s || "").replace(/[&<>"]/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
-    });
+    return (s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
   }
   function fmtDate(iso) {
     var p = (iso || "").split("-");
@@ -480,13 +431,110 @@
     return p[2] + " " + (mo[+p[1] - 1] || p[1]) + " " + p[0];
   }
 
+  // ---- auth ----
+  function setAuthMode(mode) {
+    authMode = mode;
+    var login = mode === "login";
+    $("#tabLogin").classList.toggle("active", login);
+    $("#tabSignup").classList.toggle("active", !login);
+    $("#authSubmit").textContent = login ? "Log in" : "Create account";
+    $("#au-pass").setAttribute("autocomplete", login ? "current-password" : "new-password");
+    $("#authNote").textContent = login
+      ? "Logging in syncs your bullets from the cloud to this device."
+      : "Use your " + EMAIL_DOMAIN + " email. Pick any password (6+ characters).";
+    hideAuthMsg();
+  }
+  function showAuthMsg(text, kind) {
+    var m = $("#authMsg");
+    m.textContent = text; m.className = "auth-msg " + (kind || "err"); m.hidden = false;
+  }
+  function hideAuthMsg() { $("#authMsg").hidden = true; }
+
+  $("#tabLogin").addEventListener("click", function () { setAuthMode("login"); });
+  $("#tabSignup").addEventListener("click", function () { setAuthMode("signup"); });
+
+  $("#authForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var email = $("#au-email").value.trim().toLowerCase();
+    var pass = $("#au-pass").value;
+    if (!email || !pass) { showAuthMsg("Enter your email and password."); return; }
+    if (authMode === "signup" && email.slice(-EMAIL_DOMAIN.length) !== EMAIL_DOMAIN) {
+      showAuthMsg("Sign up with your " + EMAIL_DOMAIN + " email."); return;
+    }
+    if (authMode === "signup" && pass.length < 6) { showAuthMsg("Password must be at least 6 characters."); return; }
+
+    var btn = $("#authSubmit");
+    btn.disabled = true; btn.textContent = authMode === "login" ? "Logging in…" : "Creating…";
+    hideAuthMsg();
+
+    var p = authMode === "login"
+      ? sb.auth.signInWithPassword({ email: email, password: pass })
+      : sb.auth.signUp({ email: email, password: pass });
+
+    p.then(function (res) {
+      btn.disabled = false;
+      btn.textContent = authMode === "login" ? "Log in" : "Create account";
+      if (res.error) { showAuthMsg(res.error.message); return; }
+      if (authMode === "signup" && !res.data.session) {
+        showAuthMsg("Account created. Check your " + EMAIL_DOMAIN + " inbox to confirm, then log in.", "ok");
+        setAuthMode("login");
+      }
+      // On success with a session, onAuthStateChange routes to the app.
+    }, function () {
+      btn.disabled = false;
+      btn.textContent = authMode === "login" ? "Log in" : "Create account";
+      showAuthMsg("Network error — try again.");
+    });
+  });
+
+  $("#logoutBtn").addEventListener("click", function () { sb.auth.signOut(); });
+
+  function route(session) {
+    if (session && session.user) {
+      currentUser = session.user;
+      $("#authGate").hidden = true;
+      $("#appRoot").hidden = false;
+      $("#userEmail").textContent = currentUser.email || "";
+      if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadBullets(); }
+    } else {
+      currentUser = null; loadedFor = null; store = [];
+      $("#appRoot").hidden = true;
+      $("#authGate").hidden = false;
+    }
+  }
+  sb.auth.onAuthStateChange(function (_e, session) { route(session); });
+  sb.auth.getSession().then(function (r) { route(r.data.session); });
+
+  // ---- data (cloud) ----
+  function rowToEntry(r) {
+    return {
+      id: r.id, date: r.date || "", cat: r.cat || "Other", title: r.title || "",
+      action: r.action || "", impact: r.impact || "", result: r.result || "",
+      notes: r.notes || "", tags: Array.isArray(r.tags) ? r.tags : [], createdAt: r.created_at || ""
+    };
+  }
+  function entryToRow(d) {
+    return {
+      user_id: currentUser.id, date: d.date || null, cat: d.cat, title: d.title,
+      action: d.action, impact: d.impact, result: d.result, notes: d.notes, tags: d.tags || []
+    };
+  }
+  function loadBullets() {
+    sb.from("bullets").select("*").then(function (res) {
+      if (res.error) { toast("Couldn't load your bullets"); return; }
+      store = (res.data || []).map(rowToEntry);
+      refresh();
+      maybeOfferImport();
+    });
+  }
+
+  // ---- live preview ----
   function updatePreview() {
     var txt = buildBullet(F.action.value, F.impact.value, F.result.value, F.dash.checked);
     var body = $("#previewBody"), cnt = $("#count"), box = $("#previewBox");
     var limit = getLimit();
     if (!txt) {
-      body.textContent = "Fill in the bullet to see it here";
-      body.classList.add("empty");
+      body.textContent = "Fill in the bullet to see it here"; body.classList.add("empty");
       cnt.textContent = limit ? "0 / " + limit : "0";
       cnt.classList.remove("over"); box.classList.remove("over");
       return;
@@ -494,16 +542,10 @@
     body.textContent = txt; body.classList.remove("empty");
     var n = txt.length, over = limit > 0 && n > limit;
     cnt.textContent = limit ? n + " / " + limit + (over ? " · over " + (n - limit) : "") : n + " chars";
-    cnt.classList.toggle("over", over);
-    box.classList.toggle("over", over);
+    cnt.classList.toggle("over", over); box.classList.toggle("over", over);
   }
-  ["action", "impact", "result"].forEach(function (k) { F[k].addEventListener("input", updatePreview); });
-  F.dash.addEventListener("change", function () { pref.dash = F.dash.checked; savePref(); updatePreview(); });
-  F.limit.addEventListener("input", function () {
-    var v = parseInt(F.limit.value, 10);
-    pref.limit = (isFinite(v) && v > 0) ? v : 0; savePref(); updatePreview();
-  });
 
+  // ---- tiles + list ----
   function renderTiles() {
     var el = $("#tiles"); el.innerHTML = "";
     CATS.forEach(function (c) {
@@ -513,14 +555,10 @@
       t.className = "tile" + (activeCat === c.name ? " active" : "");
       t.style.setProperty("--tc", c.color);
       t.innerHTML = '<div class="tile-count">' + count + '</div><div class="tile-name">' + c.short + '</div>';
-      t.addEventListener("click", function () {
-        activeCat = (activeCat === c.name) ? "" : c.name;
-        renderTiles(); renderList();
-      });
+      t.addEventListener("click", function () { activeCat = (activeCat === c.name) ? "" : c.name; renderTiles(); renderList(); });
       el.appendChild(t);
     });
   }
-
   function matches(e, q) {
     if (!q) return true;
     var hay = [e.title, e.action, e.impact, e.result, e.notes, e.cat, (e.tags || []).join(" ")].join(" ").toLowerCase();
@@ -528,10 +566,7 @@
   }
   function view() {
     var q = $("#search").value.trim(), sort = $("#sortBy").value;
-    var rows = store.filter(function (e) {
-      if (activeCat && e.cat !== activeCat) return false;
-      return matches(e, q);
-    });
+    var rows = store.filter(function (e) { return (!activeCat || e.cat === activeCat) && matches(e, q); });
     rows.sort(function (a, b) {
       if (sort === "area") return (a.cat || "").localeCompare(b.cat || "") || (b.date || "").localeCompare(a.date || "");
       if (sort === "date-asc") return (a.date || "").localeCompare(b.date || "");
@@ -545,27 +580,23 @@
     $("#shownCount").textContent = rows.length;
     $("#shownNoun").textContent = rows.length === 1 ? "entry" : "entries";
     $("#totalStat").textContent = store.length;
-    $("#backupText").value = store.length ? JSON.stringify(store) : "";
 
     if (!rows.length) {
       var e = document.createElement("div");
       e.className = "empty";
-      if (store.length) {
-        e.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><h3>No matches</h3><div>Try another search or area.</div>';
-      } else {
-        e.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><h3>Nothing logged yet</h3><div>Add your first accomplishment on the left.</div>';
-      }
+      e.innerHTML = store.length
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><h3>No matches</h3><div>Try another search or area.</div>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><h3>Nothing logged yet</h3><div>Add your first accomplishment on the left.</div>';
       list.appendChild(e);
       return;
     }
 
     rows.forEach(function (e) {
-      var bullet = buildBullet(e.action, e.impact, e.result, pref.dash !== false) || e.bullet || "";
+      var bullet = buildBullet(e.action, e.impact, e.result, pref.dash !== false) || "";
       var card = document.createElement("div");
       card.className = "entry";
       card.style.setProperty("--ec", catColor(e.cat));
-      var h = '<div class="entry-top"><span class="pill">' + esc(e.cat || "Other") + '</span>' +
-              '<span class="entry-date">' + fmtDate(e.date) + '</span></div>';
+      var h = '<div class="entry-top"><span class="pill">' + esc(e.cat || "Other") + '</span><span class="entry-date">' + fmtDate(e.date) + '</span></div>';
       if (e.title) h += '<div class="entry-title">' + esc(e.title) + '</div>';
       if (bullet) h += '<div class="entry-bullet">' + esc(bullet) + '</div>';
       if (e.notes) h += '<div class="entry-notes">' + esc(e.notes) + '</div>';
@@ -582,15 +613,20 @@
       list.appendChild(card);
     });
   }
-
   function refresh() { renderTiles(); renderList(); }
 
+  // ---- delete (two-step) ----
   var delTimer = null;
   function confirmDelete(btn, id) {
     if (btn.dataset.armed === "1") {
       clearTimeout(delTimer);
-      store = store.filter(function (x) { return x.id !== id; });
-      save(); refresh(); toast("Deleted");
+      btn.disabled = true;
+      sb.from("bullets").delete().eq("id", id).then(function (res) {
+        btn.disabled = false;
+        if (res.error) { toast("Delete failed"); btn.textContent = "Delete"; btn.dataset.armed = ""; return; }
+        store = store.filter(function (x) { return x.id !== id; });
+        refresh(); toast("Deleted");
+      });
       return;
     }
     Array.prototype.forEach.call(document.querySelectorAll(".act-del"), function (b) {
@@ -600,6 +636,7 @@
     delTimer = setTimeout(function () { btn.dataset.armed = ""; btn.textContent = "Delete"; }, 3500);
   }
 
+  // ---- edit ----
   function startEdit(id) {
     var e = store.filter(function (x) { return x.id === id; })[0];
     if (!e) return;
@@ -627,36 +664,76 @@
     F.limit.value = getLimit() || "";
     updatePreview();
   }
-  $("#cancelEdit").addEventListener("click", function () { $("#entryForm").reset(); resetForm(); });
-  $("#entryForm").addEventListener("reset", function () { setTimeout(resetForm, 0); });
 
-  $("#entryForm").addEventListener("submit", function (ev) {
+  // ---- submit (cloud insert/update) ----
+  function onSubmit(ev) {
     ev.preventDefault();
     var title = F.title.value.trim();
     var bullet = buildBullet(F.action.value, F.impact.value, F.result.value, true);
     if (!title) { toast("Add a short name"); F.title.focus(); return; }
     if (!bullet) { toast("Fill in at least one bullet part"); F.action.focus(); return; }
-    var data = {
+
+    var d = {
       date: F.date.value || todayISO(), cat: F.cat.value, title: title,
       action: F.action.value.trim(), impact: F.impact.value.trim(), result: F.result.value.trim(),
       notes: F.notes.value.trim(),
       tags: F.tags.value.split(",").map(function (t) { return t.trim(); }).filter(Boolean)
     };
+
+    var btn = $("#saveBtn"); btn.disabled = true;
     if (editingId) {
-      store = store.map(function (x) { return x.id === editingId ? Object.assign({}, x, data) : x; });
-      toast("Saved");
+      sb.from("bullets").update(entryToRow(d)).eq("id", editingId).select().single().then(function (res) {
+        btn.disabled = false;
+        if (res.error) { toast("Save failed"); return; }
+        store = store.map(function (x) { return x.id === editingId ? rowToEntry(res.data) : x; });
+        $("#entryForm").reset(); resetForm(); refresh(); toast("Saved");
+      });
     } else {
-      data.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      data.createdAt = new Date().toISOString();
-      store.unshift(data);
-      toast("Added to log");
+      sb.from("bullets").insert(entryToRow(d)).select().single().then(function (res) {
+        btn.disabled = false;
+        if (res.error) { toast("Save failed"); return; }
+        store.unshift(rowToEntry(res.data));
+        $("#entryForm").reset(); resetForm(); refresh(); toast("Added to log");
+      });
     }
-    save();
-    $("#entryForm").reset();
-    resetForm();
-    refresh();
+  }
+
+  // ---- import local bullets after first login ----
+  function localBullets() {
+    try { var a = JSON.parse(localStorage.getItem(LOCAL)); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+  function maybeOfferImport() {
+    var local = localBullets();
+    if (!local.length || pref.importDone) { $("#importBanner").hidden = true; return; }
+    $("#importCount").textContent = local.length;
+    $("#importBanner").hidden = false;
+  }
+  $("#importYes").addEventListener("click", function () {
+    var local = localBullets();
+    if (!local.length) { $("#importBanner").hidden = true; return; }
+    var rows = local.map(function (e) {
+      return {
+        user_id: currentUser.id, date: e.date || null, cat: e.cat || "Other", title: e.title || "",
+        action: e.action || "", impact: e.impact || "", result: e.result || "", notes: e.notes || "",
+        tags: Array.isArray(e.tags) ? e.tags : []
+      };
+    });
+    $("#importYes").disabled = true;
+    sb.from("bullets").insert(rows).select().then(function (res) {
+      $("#importYes").disabled = false;
+      if (res.error) { toast("Import failed"); return; }
+      (res.data || []).forEach(function (r) { store.unshift(rowToEntry(r)); });
+      pref.importDone = true; savePref();
+      $("#importBanner").hidden = true;
+      refresh(); toast("Imported " + (res.data || []).length + " bullets");
+    });
+  });
+  $("#importNo").addEventListener("click", function () {
+    pref.importDone = true; savePref(); $("#importBanner").hidden = true;
   });
 
+  // ---- copy ----
   function copyText(text, msg) {
     if (!text) { toast("Nothing to copy"); return; }
     function fallback() {
@@ -671,6 +748,33 @@
       navigator.clipboard.writeText(text).then(function () { toast(msg || "Copied"); }, fallback);
     } else { fallback(); }
   }
+
+  // ---- wire up app controls ----
+  var F = {
+    date: $("#f-date"), cat: $("#f-cat"), title: $("#f-title"),
+    action: $("#f-action"), impact: $("#f-impact"), result: $("#f-result"),
+    notes: $("#f-notes"), tags: $("#f-tags"), dash: $("#f-dash"), limit: $("#f-limit")
+  };
+  CATS.forEach(function (c) {
+    var o = document.createElement("option"); o.value = c.name; o.textContent = c.name; F.cat.appendChild(o);
+  });
+  F.dash.checked = pref.dash !== false;
+  F.limit.value = getLimit() || "";
+  F.date.value = todayISO();
+
+  ["action", "impact", "result"].forEach(function (k) { F[k].addEventListener("input", updatePreview); });
+  F.dash.addEventListener("change", function () { pref.dash = F.dash.checked; savePref(); updatePreview(); });
+  F.limit.addEventListener("input", function () {
+    var v = parseInt(F.limit.value, 10); pref.limit = (isFinite(v) && v > 0) ? v : 0; savePref(); updatePreview();
+  });
+
+  $("#entryForm").addEventListener("submit", onSubmit);
+  $("#entryForm").addEventListener("reset", function () { setTimeout(resetForm, 0); });
+  $("#cancelEdit").addEventListener("click", function () { $("#entryForm").reset(); resetForm(); });
+
+  var sT = null;
+  $("#search").addEventListener("input", function () { clearTimeout(sT); sT = setTimeout(renderList, 110); });
+  $("#sortBy").addEventListener("change", renderList);
   $("#copyAll").addEventListener("click", function () {
     var rows = view();
     if (!rows.length) { toast("Nothing to copy"); return; }
@@ -678,59 +782,14 @@
     copyText(lines.join("\n"), rows.length + " bullets copied");
   });
 
-  $("#copyBackup").addEventListener("click", function () {
-    if (!store.length) { toast("Log is empty"); return; }
-    copyText($("#backupText").value, "Log copied");
-  });
-  function parseBackup(raw) {
-    var arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) throw 0;
-    return arr.filter(function (e) { return e && typeof e === "object"; }).map(function (e) {
-      return {
-        id: e.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
-        date: e.date || "", cat: e.cat || "Other", title: e.title || "",
-        action: e.action || "", impact: e.impact || "", result: e.result || "",
-        bullet: e.bullet || "", notes: e.notes || "",
-        tags: Array.isArray(e.tags) ? e.tags : [], createdAt: e.createdAt || ""
-      };
-    });
-  }
-  function doRestore(replace) {
-    var raw = $("#restoreText").value.trim();
-    if (!raw) { toast("Paste a code first"); return; }
-    var incoming;
-    try { incoming = parseBackup(raw); } catch (e) { toast("Not a valid code"); return; }
-    if (!incoming.length) { toast("No entries found"); return; }
-    if (replace) { store = incoming; }
-    else {
-      var seen = {}; store.forEach(function (x) { seen[x.id] = 1; });
-      incoming.forEach(function (x) { if (!seen[x.id]) { store.push(x); seen[x.id] = 1; } });
-    }
-    save(); refresh(); $("#restoreText").value = "";
-    toast(replace ? "Replaced (" + incoming.length + ")" : "Merged " + incoming.length);
-  }
-  $("#restoreMerge").addEventListener("click", function () { doRestore(false); });
-  $("#restoreReplace").addEventListener("click", function () { doRestore(true); });
-  $("#restoreFile").addEventListener("change", function (ev) {
-    var f = ev.target.files && ev.target.files[0];
-    if (!f) return;
-    var r = new FileReader();
-    r.onload = function () { $("#restoreText").value = String(r.result || ""); toast("File loaded — now Merge or Replace"); };
-    r.onerror = function () { toast("Couldn't read that file"); };
-    r.readAsText(f);
-  });
-
-  var sT = null;
-  $("#search").addEventListener("input", function () { clearTimeout(sT); sT = setTimeout(renderList, 110); });
-  $("#sortBy").addEventListener("change", renderList);
-
+  // ---- toast ----
   var tT = null;
   function toast(msg) {
     var t = $("#toast"); t.textContent = msg; t.classList.add("show");
     clearTimeout(tT); tT = setTimeout(function () { t.classList.remove("show"); }, 2100);
   }
 
+  setAuthMode("login");
   updatePreview();
-  refresh();
 })();
 </script>
