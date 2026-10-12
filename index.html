@@ -459,8 +459,9 @@
     var email = $("#au-email").value.trim().toLowerCase();
     var pass = $("#au-pass").value;
     if (!email || !pass) { showAuthMsg("Enter your email and password."); return; }
-    if (authMode === "signup" && email.slice(-EMAIL_DOMAIN.length) !== EMAIL_DOMAIN) {
-      showAuthMsg("Sign up with your " + EMAIL_DOMAIN + " email."); return;
+    var domain = (email.split("@")[1] || "");
+    if (authMode === "signup" && !/(^|\.)afacademy\.(af\.)?edu$/.test(domain)) {
+      showAuthMsg("Please sign up with your academy email (ending in afacademy.af.edu)."); return;
     }
     if (authMode === "signup" && pass.length < 6) { showAuthMsg("Password must be at least 6 characters."); return; }
 
@@ -475,7 +476,19 @@
     p.then(function (res) {
       btn.disabled = false;
       btn.textContent = authMode === "login" ? "Log in" : "Create account";
-      if (res.error) { showAuthMsg(res.error.message); return; }
+      if (res.error) {
+        var m = res.error.message || "Something went wrong.";
+        if (authMode === "login" && /invalid login/i.test(m)) {
+          showAuthMsg("No account found with that email and password. New here? Tap “Sign up” above to create your account first.");
+        } else if (/not confirmed/i.test(m)) {
+          showAuthMsg("This account was started earlier and still needs confirming. Tell the site owner to reset it, or use a different email.");
+        } else if (/already registered|already exists/i.test(m)) {
+          showAuthMsg("That email already has an account — switch to “Log in”.");
+        } else {
+          showAuthMsg(m);
+        }
+        return;
+      }
       if (authMode === "signup" && !res.data.session) {
         showAuthMsg("Account created. Check your " + EMAIL_DOMAIN + " inbox to confirm, then log in.", "ok");
         setAuthMode("login");
