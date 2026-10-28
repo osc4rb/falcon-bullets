@@ -1,6 +1,7 @@
 <title>Falcon Bullets</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0b0f;
@@ -251,6 +252,11 @@
   .sec-src li { font-size: .84rem; color: var(--fg); margin-bottom: 5px; }
   .sec-none { font-size: .82rem; color: var(--faint); font-style: italic; }
   .sec-sentence { width: 100%; margin-top: 10px; min-height: 46px; }
+  .seccount { margin-left: auto; font-size: .72rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .sec-head .copy1 { margin-left: 10px; }
+  .exp-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 520px) { .exp-details { grid-template-columns: 1fr 1fr; } }
+  .exp-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
@@ -411,8 +417,20 @@
       <button class="x" id="exportClose" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro">The 715a asks for <b>one sentence per section</b>. Your logged bullets are grouped below by the four rated areas — use them as raw material, write your sentence in each box, then copy it into the form in Adobe.</p>
+      <p class="modal-intro">Fill in your details and one sentence per section, then download a ready-made 715a PDF — you type nothing on the form. Your supervisor adds the checkmarks and CAC signatures in Adobe.</p>
+      <div class="exp-details">
+        <div><label class="lab" for="p-name">Name</label><input type="text" id="p-name" placeholder="Last, First"></div>
+        <div><label class="lab" for="p-sqdn">Squadron</label><input type="text" id="p-sqdn" placeholder="CS-00"></div>
+        <div><label class="lab" for="p-class">Class</label><select id="p-class"></select></div>
+      </div>
       <div id="exportSections"></div>
+      <div class="exp-footer">
+        <button class="btn btn-primary" id="downloadPdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download 715a PDF
+        </button>
+        <button class="btn btn-ghost" id="copyAllSentences">Copy all 4 sentences</button>
+      </div>
     </div>
   </div>
 </div>
@@ -437,6 +455,13 @@
     { name: "Out of Squadron Contribution",short: "Out of Sqdn", weight: "15%", color: "var(--c-ath)" },
     { name: "Presence & Attitude",         short: "Presence",    weight: "10%", color: "var(--c-char)" }
   ];
+  var CLASSES = ["C4C", "C3C", "C2C", "C1C"];
+  var DUTIES = {
+    "C4C": "As a Four Degree, performed assigned basic tasks to standard while learning and conforming to USAFA and Department of the Air Force standards, customs, courtesies, heritage, and core values.",
+    "C3C": "As a Three Degree, developed subordinates and ensured effective accomplishment of assigned tasks through responsible training, subordinate supervision, and task execution.",
+    "C2C": "As a Two Degree, served as a primary military trainer, advisor, supervisor, and mentor for the Three and Four Degrees under charge, integrating their talents and articulating risk to accomplish the mission per Firstie intent.",
+    "C1C": "As a Firstie, led and directed the team to execute the mission, managed risk and resources, developed and maintained squadron culture, and safeguarded the morale, well-being, and welfare of those under charge."
+  };
   function catColor(name) {
     for (var i = 0; i < CATS.length; i++) if (CATS[i].name === name) return CATS[i].color;
     return "var(--c-other)";
@@ -612,7 +637,7 @@
       t.type = "button";
       t.className = "tile" + (activeCat === c.name ? " active" : "");
       t.style.setProperty("--tc", c.color);
-      t.innerHTML = '<div class="tile-top"><div class="tile-count">' + count + '</div><div class="tile-weight">' + (c.weight || "") + '</div></div><div class="tile-name">' + c.short + '</div>';
+      t.innerHTML = '<div class="tile-count">' + count + '</div><div class="tile-name">' + c.short + '</div>';
       t.addEventListener("click", function () { activeCat = (activeCat === c.name) ? "" : c.name; renderTiles(); renderList(); });
       el.appendChild(t);
     });
@@ -843,6 +868,7 @@
   // ---- Export for 715a: one sentence per rated section ----
   function openExport() {
     if (!pref.sentences) pref.sentences = {};
+    wireExportProfile();
     var wrap = $("#exportSections");
     wrap.innerHTML = "";
     CATS.forEach(function (c) {
@@ -855,19 +881,84 @@
         ? '<ul>' + bullets.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join("") + '</ul>'
         : '<div class="sec-none">No bullets logged in this area yet.</div>';
       sec.innerHTML =
-        '<div class="sec-head"><h3>' + esc(c.name) + '</h3><span class="w">' + c.weight + '</span>' +
-        '<button class="btn btn-ghost btn-sm copy1" type="button">Copy sentence</button></div>' +
+        '<div class="sec-head"><h3>' + esc(c.name) + '</h3>' +
+        '<span class="seccount"></span>' +
+        '<button class="btn btn-ghost btn-sm copy1" type="button">Copy</button></div>' +
         '<div class="sec-src">' + src +
         '<textarea class="sec-sentence" placeholder="Your one sentence for this section…"></textarea></div>';
       var ta = sec.querySelector(".sec-sentence");
-      ta.value = pref.sentences[c.name] || "";
-      ta.addEventListener("input", function () { pref.sentences[c.name] = ta.value; savePref(); });
+      var cnt = sec.querySelector(".seccount");
+      var dutyDefault = (c.name === "Duty & Job Performance" && pref.profile && DUTIES[pref.profile.cls]) ? DUTIES[pref.profile.cls] : "";
+      ta.value = pref.sentences[c.name] || dutyDefault;
+      function tick() { cnt.textContent = ta.value.length + " chars"; }
+      tick();
+      ta.addEventListener("input", function () { pref.sentences[c.name] = ta.value; savePref(); tick(); });
       sec.querySelector(".copy1").addEventListener("click", function () { copyText(ta.value, "Sentence copied"); });
       wrap.appendChild(sec);
     });
     $("#exportModal").hidden = false;
   }
+  function ensureClassOptions() {
+    var sel = $("#p-class");
+    if (sel.options.length) return;
+    var blank = document.createElement("option"); blank.value = ""; blank.textContent = "—"; sel.appendChild(blank);
+    CLASSES.forEach(function (cl) { var o = document.createElement("option"); o.value = cl; o.textContent = cl; sel.appendChild(o); });
+  }
+  function wireExportProfile() {
+    if (!pref.profile) pref.profile = {};
+    ensureClassOptions();
+    var n = $("#p-name"), s = $("#p-sqdn"), cl = $("#p-class");
+    n.value = pref.profile.name || ""; s.value = pref.profile.sqdn || ""; cl.value = pref.profile.cls || "";
+    n.oninput = function () { pref.profile.name = n.value; savePref(); };
+    s.oninput = function () { pref.profile.sqdn = s.value; savePref(); };
+    cl.onchange = function () { pref.profile.cls = cl.value; savePref(); openExport(); };
+  }
+  function sectionText(c) {
+    var t = (pref.sentences && pref.sentences[c.name]) || "";
+    if (!t && c.name === "Duty & Job Performance" && pref.profile) t = DUTIES[pref.profile.cls] || "";
+    return t;
+  }
+  function generatePDF() {
+    var ctor = window.jspdf && window.jspdf.jsPDF;
+    if (!ctor) { toast("PDF tool still loading — try again in a sec"); return; }
+    var p = pref.profile || {};
+    var doc = new ctor({ unit: "pt", format: "letter" });
+    var M = 54, RIGHT = 612 - 54, y = 58;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15);
+    doc.text("USAFA Form 715a - Cadet Rater Assessment", M, y);
+    doc.setDrawColor(160); doc.line(M, y + 8, RIGHT, y + 8); y += 32;
+    doc.setFontSize(10); doc.setFont("helvetica", "normal");
+    doc.text("Name: " + (p.name || "____________________"), M, y);
+    doc.text("Squadron: " + (p.sqdn || "________"), M + 310, y); y += 16;
+    doc.text("Class: " + (p.cls || "____"), M, y);
+    doc.text("Date: " + new Date().toLocaleDateString(), M + 310, y); y += 28;
+    CATS.forEach(function (c) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+      doc.text(c.name, M, y); y += 15;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+      var txt = sectionText(c) || "(no entry)";
+      var lines = doc.splitTextToSize(txt, RIGHT - M);
+      doc.text(lines, M, y); y += lines.length * 13 + 8;
+      doc.setTextColor(110);
+      doc.text("Supervisor:  [ ] Exceeds Standards    [ ] Meets Standards    [ ] Below Standards", M, y);
+      doc.setTextColor(0); y += 28;
+      if (y > 700) { doc.addPage(); y = 58; }
+    });
+    y += 4; doc.setDrawColor(160); doc.line(M, y, RIGHT, y); y += 26;
+    doc.text("Ratee signature: __________________________    Date: ____________", M, y); y += 26;
+    doc.text("Rater signature: __________________________    Date: ____________", M, y); y += 34;
+    doc.setFontSize(8); doc.setTextColor(140);
+    doc.text("Prepared with Falcon Bullets" + (p.name ? " — " + p.name : ""), M, y);
+    doc.save("715a-" + ((p.name || "cadet").replace(/[^a-z0-9]+/gi, "_")) + ".pdf");
+    toast("715a PDF downloaded");
+  }
+  function copyAllSentences() {
+    var out = CATS.map(function (c) { return c.name + ":\n" + (sectionText(c) || "(none)"); }).join("\n\n");
+    copyText(out, "All sections copied");
+  }
   $("#export715").addEventListener("click", openExport);
+  $("#downloadPdf").addEventListener("click", generatePDF);
+  $("#copyAllSentences").addEventListener("click", copyAllSentences);
   $("#exportClose").addEventListener("click", function () { $("#exportModal").hidden = true; });
   $("#exportModal").addEventListener("click", function (ev) { if (ev.target === $("#exportModal")) $("#exportModal").hidden = true; });
 
