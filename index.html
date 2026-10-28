@@ -259,6 +259,21 @@
   .exp-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
   .exp-h { font-size: .74rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 6px 0 10px; }
   .exp-desc { min-height: 84px; }
+  .exp-h-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .exp-two { grid-template-columns: 1fr 1fr; }
+  .classpick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .classpick button {
+    cursor: pointer; font-family: inherit; font-weight: 700; font-size: .9rem; letter-spacing: .02em;
+    padding: 10px 0; border-radius: 10px; border: 1px solid var(--line-2);
+    background: var(--surface-2); color: var(--muted);
+  }
+  .classpick button:hover { color: var(--fg); }
+  .classpick button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .classpick button small { display: block; font-weight: 500; font-size: .68rem; opacity: .85; margin-top: 2px; }
+  input.auto[readonly], textarea.auto[readonly] {
+    background: var(--surface-3); color: var(--fg); border-color: var(--line); cursor: default;
+  }
+  input.auto[readonly]:focus, textarea.auto[readonly]:focus { box-shadow: none; border-color: var(--line); }
   .sec-hint { font-size: .74rem; color: var(--faint); padding: 0 13px; margin-top: -6px; margin-bottom: 8px; }
   .seccount.warn { color: var(--c-char); font-weight: 700; }
   .seccount.over { color: var(--danger); font-weight: 700; }
@@ -408,24 +423,28 @@
     <div class="modal-body">
       <p class="modal-intro">Everything below goes straight onto the real USAFA Form 715A. Your info is filled in from your email, and each section starts from your logged bullets &mdash; trim each to one sentence, then download. Open the file in Adobe Acrobat; your supervisor checks the boxes and signs with CAC.</p>
 
-      <div class="exp-h">I. Ratee identification data</div>
-      <div class="exp-details">
-        <div><label class="lab" for="p-name">1. Name</label><input type="text" id="p-name" placeholder="Last, First"></div>
-        <div><label class="lab" for="p-classrank">2. Class year and rank</label><input type="text" id="p-classrank" placeholder="2029 - C3C (Cadet Staff Sergeant)"></div>
-        <div><label class="lab" for="p-unit">3. Unit</label><input type="text" id="p-unit" placeholder="CS-06"></div>
+      <div class="exp-h exp-h-row">I. Ratee identification data
+        <button class="btn btn-ghost btn-sm" id="p-edit" type="button">Edit</button></div>
+      <div class="field">
+        <label class="lab">Your class <span class="opt" id="p-class-src"></span></label>
+        <div class="classpick" id="p-classpick"></div>
       </div>
       <div class="exp-details">
-        <div><label class="lab" for="p-class">Class</label><select id="p-class"></select></div>
-        <div><label class="lab" for="p-dutytitle">4. Duty title</label><input type="text" id="p-dutytitle"></div>
-        <div><label class="lab" for="p-semester">5. Semester</label><input type="text" id="p-semester" placeholder="Fall 2026"></div>
+        <div><label class="lab" for="p-name">1. Name</label><input type="text" id="p-name" class="auto" placeholder="Last, First"></div>
+        <div><label class="lab" for="p-classrank">2. Class year and rank</label><input type="text" id="p-classrank" class="auto"></div>
+        <div><label class="lab" for="p-unit">3. Unit <span class="opt">&middot; type once</span></label><input type="text" id="p-unit" placeholder="CS-06"></div>
+      </div>
+      <div class="exp-details exp-two">
+        <div><label class="lab" for="p-dutytitle">4. Duty title</label><input type="text" id="p-dutytitle" class="auto"></div>
+        <div><label class="lab" for="p-semester">5. Semester</label><input type="text" id="p-semester" class="auto"></div>
       </div>
       <div class="field" id="p-job-wrap" hidden>
-        <label class="lab" for="p-job">Your job <span class="opt">&middot; fills duty title, description, and rank from the AFCW Classification Directory</span></label>
+        <label class="lab" for="p-job">Job <span class="opt">&middot; optional &mdash; leave on your class role, or pick your squadron job</span></label>
         <select id="p-job"></select>
       </div>
       <div class="field">
         <label class="lab" for="p-dutydesc">6. Duty description</label>
-        <textarea id="p-dutydesc" class="exp-desc"></textarea>
+        <textarea id="p-dutydesc" class="exp-desc auto"></textarea>
       </div>
 
       <div class="exp-h">II. Cadet rater assessment &mdash; one sentence each</div>
@@ -530,9 +549,20 @@
       if (deg >= 1 && deg <= 4) out.cls = "C" + deg + "C";
       lp = lp.slice(m[0].length);
     }
-    var parts = lp.split(/[._-]+/).filter(Boolean);
-    if (parts.length >= 2) out.name = titleCase(parts[parts.length - 1]) + ", " + titleCase(parts[0]);
-    else if (parts.length === 1) out.name = titleCase(parts[0]);
+    // first.last, first.m.last (middle initial), first.last-name (hyphenated), trailing numbers dropped
+    var parts = lp.split(/[._]+/).map(function (s) { return s.replace(/\d+/g, ""); }).filter(Boolean);
+    var cap = function (s) {
+      return s.split("-").map(function (w) {
+        w = titleCase(w);
+        return /^Mc[a-z]/.test(w) ? "Mc" + w.charAt(2).toUpperCase() + w.slice(3) : w;
+      }).join("-");
+    };
+    if (parts.length >= 2) {
+      var mi = parts.length >= 3 && parts[1].length === 1 ? " " + parts[1].toUpperCase() : "";
+      out.name = cap(parts[parts.length - 1]) + ", " + cap(parts[0]) + mi;
+    } else if (parts.length === 1) {
+      out.name = cap(parts[0]);
+    }
     return out;
   }
 
@@ -907,11 +937,23 @@
   var SECTION_TARGET = 400;  // about what fits in a Section II box at the form's normal 9pt
   var SECTION_MAX = 600;     // past this the text has to shrink a lot to fit
 
-  function ensureClassOptions() {
-    var sel = $("#p-class");
-    if (sel.options.length) return;
-    var blank = document.createElement("option"); blank.value = ""; blank.textContent = "—"; sel.appendChild(blank);
-    CLASSES.forEach(function (cl) { var o = document.createElement("option"); o.value = cl; o.textContent = cl; sel.appendChild(o); });
+  var CLASS_NAMES = { C4C: "Four Degree", C3C: "Three Degree", C2C: "Two Degree", C1C: "Firstie" };
+  function renderClassPick(cls) {
+    var box = $("#p-classpick");
+    box.innerHTML = "";
+    CLASSES.forEach(function (c) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = c === cls ? "on" : "";
+      b.innerHTML = c + "<small>" + CLASS_NAMES[c] + "</small>";
+      b.addEventListener("click", function () {
+        // A different class resets the class-driven boxes to that class's wording.
+        pref.p715.cls = c;
+        delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
+        savePref(); openExport();
+      });
+      box.appendChild(b);
+    });
   }
   function semesterNow() {
     var d = new Date();
@@ -977,7 +1019,9 @@
   // The 715a values: the cadet's saved edits first, then defaults from their email, class, and job.
   function f715() {
     if (!pref.p715) pref.p715 = {};
-    var p = pref.p715, prof = pref.profile || {}, cls = p.cls != null ? p.cls : (prof.cls || "");
+    var p = pref.p715, prof = pref.profile || {};
+    var der = deriveProfile(currentUser ? currentUser.email : "");  // the login email is the source of truth
+    var cls = p.cls || der.cls || prof.cls || "";
     var role = CLASS_ROLE[cls] || {};
     var title = role.title || "", desc = role.desc || "", rankName = role.rank || "";
     var job = jobById(p.job);
@@ -987,14 +1031,15 @@
       var r = pickRank(job.rank, cls);
       if (r) rankName = "Cadet " + RANK_FULL[r];
     }
+    // Empty saved values fall back to the automatic ones, so a cleared box refills itself.
     return {
-      cls: cls,
-      name: p.name != null ? p.name : (prof.name || ""),
-      class_rank: p.class_rank != null ? p.class_rank : classRankFor(cls, rankName),
+      cls: cls, fromEmail: !p.cls && !!der.cls,
+      name: p.name || der.name || prof.name || "",
+      class_rank: p.class_rank || classRankFor(cls, rankName),
       unit: p.unit != null ? p.unit : (prof.sqdn || ""),
-      semester: p.semester != null ? p.semester : semesterNow(),
-      duty_title: p.duty_title != null ? p.duty_title : title,
-      duty_desc: p.duty_desc != null ? p.duty_desc : desc
+      semester: p.semester || semesterNow(),
+      duty_title: p.duty_title || title,
+      duty_desc: p.duty_desc || desc
     };
   }
   function bulletsFor(c) {
@@ -1006,22 +1051,20 @@
     return bulletsFor(c).join("; ");
   }
 
+  var editing715 = false;  // Section I boxes stay locked (already filled) unless the cadet taps Edit
   function openExport() {
     if (!pref.sentences) pref.sentences = {};
-    ensureClassOptions();
     var v = f715();
     [["#p-name", "name"], ["#p-classrank", "class_rank"], ["#p-unit", "unit"],
      ["#p-dutytitle", "duty_title"], ["#p-semester", "semester"], ["#p-dutydesc", "duty_desc"]].forEach(function (b) {
       var el = $(b[0]); el.value = v[b[1]];
       el.oninput = function () { pref.p715[b[1]] = el.value; savePref(); };
     });
-    var cl = $("#p-class"); cl.value = v.cls;
-    cl.onchange = function () {
-      // Picking a different class resets the class-driven boxes to that class's wording.
-      pref.p715.cls = cl.value;
-      delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
-      savePref(); openExport();
-    };
+    renderClassPick(v.cls);
+    $("#p-class-src").textContent = !v.cls ? "· tap yours" : v.fromEmail ? "· picked from your email" : "";
+    Array.prototype.forEach.call(document.querySelectorAll("#exportModal .auto"), function (el) { el.readOnly = !editing715; });
+    $("#p-edit").textContent = editing715 ? "Done" : "Edit";
+    $("#p-edit").onclick = function () { editing715 = !editing715; openExport(); };
     populateJobs();
     var js = $("#p-job");
     js.onchange = function () {
