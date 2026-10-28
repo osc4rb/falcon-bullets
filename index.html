@@ -419,6 +419,10 @@
         <div><label class="lab" for="p-dutytitle">4. Duty title</label><input type="text" id="p-dutytitle"></div>
         <div><label class="lab" for="p-semester">5. Semester</label><input type="text" id="p-semester" placeholder="Fall 2026"></div>
       </div>
+      <div class="field" id="p-job-wrap" hidden>
+        <label class="lab" for="p-job">Your job <span class="opt">&middot; fills duty title, description, and rank from the AFCW Classification Directory</span></label>
+        <select id="p-job"></select>
+      </div>
       <div class="field">
         <label class="lab" for="p-dutydesc">6. Duty description</label>
         <textarea id="p-dutydesc" class="exp-desc"></textarea>
@@ -614,9 +618,9 @@
       if (!pref.profile.name && der.name) pref.profile.name = der.name;
       if (!pref.profile.cls && der.cls) pref.profile.cls = der.cls;
       savePref();
-      if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadBullets(); }
+      if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadBullets(); loadPositions(); }
     } else {
-      currentUser = null; loadedFor = null; store = [];
+      currentUser = null; loadedFor = null; store = []; POSITIONS = null;
       $("#appRoot").hidden = true;
       $("#authGate").hidden = false;
     }
@@ -913,25 +917,84 @@
     var d = new Date();
     return (d.getMonth() >= 6 ? "Fall " : "Spring ") + d.getFullYear();
   }
-  function classRankFor(cls) {
+  function classRankFor(cls, rankName) {
     if (!cls) return "";
     var der = deriveProfile(currentUser ? currentUser.email : "");
-    var role = CLASS_ROLE[cls] || {};
-    return (der.gradYear ? der.gradYear + " - " : "") + cls + (role.rank ? " (" + role.rank + ")" : "");
+    return (der.gradYear ? der.gradYear + " - " : "") + cls + (rankName ? " (" + rankName + ")" : "");
   }
-  // The 715a values: the cadet's saved edits first, then defaults from their email and class.
+
+  // ---- AFCW Classification Directory jobs (served from Supabase to signed-in academy accounts) ----
+  var POSITIONS = null;
+  var RANK_ORDER = ["Amn", "A1C", "SrA", "SSgt", "TSgt", "MSgt", "SMSgt", "CMSgt", "2d Lt", "1Lt", "Capt", "Maj", "Lt Col", "Col"];
+  var RANK_FULL = { "Amn": "Airman", "A1C": "Airman First Class", "SrA": "Senior Airman", "SSgt": "Staff Sergeant",
+    "TSgt": "Technical Sergeant", "MSgt": "Master Sergeant", "SMSgt": "Senior Master Sergeant", "CMSgt": "Chief Master Sergeant",
+    "2d Lt": "Second Lieutenant", "1Lt": "First Lieutenant", "Capt": "Captain", "Maj": "Major", "Lt Col": "Lieutenant Colonel", "Col": "Colonel" };
+  var OFFICER = { "2d Lt": 1, "1Lt": 1, "Capt": 1, "Maj": 1, "Lt Col": 1, "Col": 1 };
+  function normRank(r) {
+    if (/^smg?s?gt$/i.test(r)) return "SMSgt";  // the directory has a "SMgt" typo
+    for (var i = 0; i < RANK_ORDER.length; i++) if (RANK_ORDER[i].toLowerCase() === r.toLowerCase()) return RANK_ORDER[i];
+    return null;
+  }
+  // Jobs open to several classes list several ranks ("1Lt, TSgt"); pick the one for this class.
+  function pickRank(rankList, cls) {
+    var toks = (rankList || "").split(/,\s*/).map(normRank).filter(Boolean);
+    if (toks.length <= 1) return toks[0] || null;
+    var off = toks.filter(function (t) { return OFFICER[t]; }), nco = toks.filter(function (t) { return !OFFICER[t]; });
+    var seniority = function (a, b) { return RANK_ORDER.indexOf(a) - RANK_ORDER.indexOf(b); };
+    nco.sort(seniority);
+    if (cls === "C1C") return off[0] || nco[nco.length - 1];
+    if (cls === "C2C") return nco.length ? nco[nco.length - 1] : off[0];
+    if (cls === "C4C" && toks.indexOf("Amn") >= 0) return "Amn";
+    return nco.length ? nco[0] : off[0];
+  }
+  function jobById(id) {
+    if (!POSITIONS || !id) return null;
+    for (var i = 0; i < POSITIONS.length; i++) if (String(POSITIONS[i].id) === String(id)) return POSITIONS[i];
+    return null;
+  }
+  function loadPositions() {
+    sb.from("positions").select("id,display,rank,additional,summary,grp").order("id").then(function (res) {
+      POSITIONS = (!res.error && res.data && res.data.length) ? res.data : null;
+      if (!$("#exportModal").hidden) openExport(); else populateJobs();
+    });
+  }
+  function populateJobs() {
+    var sel = $("#p-job"), wrap = $("#p-job-wrap");
+    if (!POSITIONS) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    if (!sel.options.length) {
+      var none = document.createElement("option"); none.value = ""; none.textContent = "My class role (no specific job)"; sel.appendChild(none);
+      var groups = {};
+      POSITIONS.forEach(function (p) {
+        var g = groups[p.grp];
+        if (!g) { g = groups[p.grp] = document.createElement("optgroup"); g.label = (p.grp || "Other").replace(/^appendix\s+\w+:\s*/i, ""); sel.appendChild(g); }
+        var op = document.createElement("option"); op.value = String(p.id); op.textContent = p.display; g.appendChild(op);
+      });
+    }
+    sel.value = (pref.p715 && pref.p715.job) || "";
+  }
+
+  // The 715a values: the cadet's saved edits first, then defaults from their email, class, and job.
   function f715() {
     if (!pref.p715) pref.p715 = {};
     var p = pref.p715, prof = pref.profile || {}, cls = p.cls != null ? p.cls : (prof.cls || "");
     var role = CLASS_ROLE[cls] || {};
+    var title = role.title || "", desc = role.desc || "", rankName = role.rank || "";
+    var job = jobById(p.job);
+    if (job) {
+      title = cls ? cls + " (" + job.display + ")" : job.display;
+      desc = job.summary || desc;
+      var r = pickRank(job.rank, cls);
+      if (r) rankName = "Cadet " + RANK_FULL[r];
+    }
     return {
       cls: cls,
       name: p.name != null ? p.name : (prof.name || ""),
-      class_rank: p.class_rank != null ? p.class_rank : classRankFor(cls),
+      class_rank: p.class_rank != null ? p.class_rank : classRankFor(cls, rankName),
       unit: p.unit != null ? p.unit : (prof.sqdn || ""),
       semester: p.semester != null ? p.semester : semesterNow(),
-      duty_title: p.duty_title != null ? p.duty_title : (role.title || ""),
-      duty_desc: p.duty_desc != null ? p.duty_desc : (role.desc || "")
+      duty_title: p.duty_title != null ? p.duty_title : title,
+      duty_desc: p.duty_desc != null ? p.duty_desc : desc
     };
   }
   function bulletsFor(c) {
@@ -956,6 +1019,14 @@
     cl.onchange = function () {
       // Picking a different class resets the class-driven boxes to that class's wording.
       pref.p715.cls = cl.value;
+      delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
+      savePref(); openExport();
+    };
+    populateJobs();
+    var js = $("#p-job");
+    js.onchange = function () {
+      // Picking a job fills its title, duty summary, and rank; manual edits to those reset.
+      pref.p715.job = js.value;
       delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
       savePref(); openExport();
     };
