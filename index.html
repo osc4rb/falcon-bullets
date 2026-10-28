@@ -1,7 +1,6 @@
 <title>Falcon Bullets</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0b0f;
@@ -316,16 +315,9 @@
       <form class="card" id="entryForm" autocomplete="off">
         <div class="card-head"><h2 id="formTitle">New bullet</h2><span class="sub" id="formMode">add to log</span></div>
         <div class="card-body">
-          <div class="row2">
-            <div class="field">
-              <label class="lab" for="f-date">Date</label>
-              <input type="date" id="f-date" required>
-              <div class="hint">Log only — not on the form.</div>
-            </div>
-            <div class="field">
-              <label class="lab" for="f-cat">Area</label>
-              <select id="f-cat" required></select>
-            </div>
+          <div class="field">
+            <label class="lab" for="f-cat">Area (715a section)</label>
+            <select id="f-cat" required></select>
           </div>
 
           <div class="field">
@@ -349,15 +341,6 @@
           <div class="preview" id="previewBox">
             <div class="preview-head"><span>PREVIEW</span><span class="count" id="count">0</span></div>
             <div class="preview-body empty" id="previewBody">Fill in the bullet to see it here</div>
-          </div>
-
-          <div class="field" style="margin-top:14px">
-            <label class="lab" for="f-notes">Notes to self <span class="opt">· optional</span></label>
-            <textarea id="f-notes" placeholder="Numbers, names, context you might forget later"></textarea>
-          </div>
-          <div class="field">
-            <label class="lab" for="f-tags">Tags <span class="opt">· comma-separated</span></label>
-            <input type="text" id="f-tags" placeholder="leadership, award-worthy">
           </div>
 
           <div class="form-actions">
@@ -417,7 +400,7 @@
       <button class="x" id="exportClose" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro">Fill in your details and one sentence per section, then download a ready-made 715a PDF — you type nothing on the form. Your supervisor adds the checkmarks and CAC signatures in Adobe.</p>
+      <p class="modal-intro">Your name and class are pulled from your email. Each section starts from your logged bullets — trim each to one tight sentence. Then <b>Copy everything</b>, open the real 715a in Adobe (where you sign with CAC), and paste. Only the checkmarks and signatures are left.</p>
       <div class="exp-details">
         <div><label class="lab" for="p-name">Name</label><input type="text" id="p-name" placeholder="Last, First"></div>
         <div><label class="lab" for="p-sqdn">Squadron</label><input type="text" id="p-sqdn" placeholder="CS-00"></div>
@@ -425,11 +408,10 @@
       </div>
       <div id="exportSections"></div>
       <div class="exp-footer">
-        <button class="btn btn-primary" id="downloadPdf">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          Download 715a PDF
+        <button class="btn btn-primary" id="copyAllSentences">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy everything for the 715a
         </button>
-        <button class="btn btn-ghost" id="copyAllSentences">Copy all 4 sentences</button>
       </div>
     </div>
   </div>
@@ -499,6 +481,23 @@
     if (p.length !== 3) return iso || "";
     var mo = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     return p[2] + " " + (mo[+p[1] - 1] || p[1]) + " " + p[0];
+  }
+  function titleCase(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s; }
+  // Derive name + class from a cadet email like c29oscar.basaula@afacademy.af.edu
+  function deriveProfile(email) {
+    var out = {}, lp = (email || "").split("@")[0] || "";
+    var m = lp.match(/^c(\d{2})[._-]?/i);
+    if (m) {
+      out.gradYear = 2000 + parseInt(m[1], 10);
+      var now = new Date(), base = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+      var deg = out.gradYear - base;
+      if (deg >= 1 && deg <= 4) out.cls = "C" + deg + "C";
+      lp = lp.slice(m[0].length);
+    }
+    var parts = lp.split(/[._-]+/).filter(Boolean);
+    if (parts.length >= 2) out.name = titleCase(parts[parts.length - 1]) + ", " + titleCase(parts[0]);
+    else if (parts.length === 1) out.name = titleCase(parts[0]);
+    return out;
   }
 
   // ---- auth ----
@@ -578,6 +577,11 @@
       $("#authGate").hidden = true;
       $("#appRoot").hidden = false;
       $("#userEmail").textContent = currentUser.email || "";
+      if (!pref.profile) pref.profile = {};
+      var der = deriveProfile(currentUser.email || "");
+      if (!pref.profile.name && der.name) pref.profile.name = der.name;
+      if (!pref.profile.cls && der.cls) pref.profile.cls = der.cls;
+      savePref();
       if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadBullets(); }
     } else {
       currentUser = null; loadedFor = null; store = [];
@@ -679,11 +683,9 @@
       var card = document.createElement("div");
       card.className = "entry";
       card.style.setProperty("--ec", catColor(e.cat));
-      var h = '<div class="entry-top"><span class="pill">' + esc(e.cat || "Other") + '</span><span class="entry-date">' + fmtDate(e.date) + '</span></div>';
+      var h = '<div class="entry-top"><span class="pill">' + esc(e.cat || "Other") + '</span></div>';
       if (e.title) h += '<div class="entry-title">' + esc(e.title) + '</div>';
       if (bullet) h += '<div class="entry-bullet">' + esc(bullet) + '</div>';
-      if (e.notes) h += '<div class="entry-notes">' + esc(e.notes) + '</div>';
-      if (e.tags && e.tags.length) h += '<div class="tags">' + e.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join("") + '</div>';
       h += '<div class="entry-actions">' +
            '<button class="btn btn-ghost btn-sm act-copy" type="button">Copy</button>' +
            '<button class="btn btn-ghost btn-sm act-edit" type="button">Edit</button>' +
@@ -724,10 +726,9 @@
     var e = store.filter(function (x) { return x.id === id; })[0];
     if (!e) return;
     editingId = id;
-    F.date.value = e.date || todayISO(); F.cat.value = e.cat || "Other";
+    F.cat.value = e.cat || "Other";
     F.title.value = e.title || ""; F.action.value = e.action || "";
     F.impact.value = e.impact || ""; F.result.value = e.result || "";
-    F.notes.value = e.notes || ""; F.tags.value = (e.tags || []).join(", ");
     updatePreview();
     $("#formTitle").textContent = "Edit bullet";
     $("#formMode").textContent = "editing";
@@ -742,7 +743,6 @@
     $("#formMode").textContent = "add to log";
     $("#saveLabel").textContent = "Add to log";
     $("#cancelEdit").hidden = true;
-    F.date.value = todayISO();
     F.dash.checked = pref.dash !== false;
     F.limit.value = getLimit() || "";
     updatePreview();
@@ -757,10 +757,9 @@
     if (!bullet) { toast("Fill in at least one bullet part"); F.action.focus(); return; }
 
     var d = {
-      date: F.date.value || todayISO(), cat: F.cat.value, title: title,
+      date: todayISO(), cat: F.cat.value, title: title,
       action: F.action.value.trim(), impact: F.impact.value.trim(), result: F.result.value.trim(),
-      notes: F.notes.value.trim(),
-      tags: F.tags.value.split(",").map(function (t) { return t.trim(); }).filter(Boolean)
+      notes: "", tags: []
     };
 
     var btn = $("#saveBtn"); btn.disabled = true;
@@ -834,16 +833,15 @@
 
   // ---- wire up app controls ----
   var F = {
-    date: $("#f-date"), cat: $("#f-cat"), title: $("#f-title"),
+    cat: $("#f-cat"), title: $("#f-title"),
     action: $("#f-action"), impact: $("#f-impact"), result: $("#f-result"),
-    notes: $("#f-notes"), tags: $("#f-tags"), dash: $("#f-dash"), limit: $("#f-limit")
+    dash: $("#f-dash"), limit: $("#f-limit")
   };
   CATS.forEach(function (c) {
     var o = document.createElement("option"); o.value = c.name; o.textContent = c.name; F.cat.appendChild(o);
   });
   F.dash.checked = pref.dash !== false;
   F.limit.value = getLimit() || "";
-  F.date.value = todayISO();
 
   ["action", "impact", "result"].forEach(function (k) { F[k].addEventListener("input", updatePreview); });
   F.dash.addEventListener("change", function () { pref.dash = F.dash.checked; savePref(); updatePreview(); });
@@ -888,8 +886,7 @@
         '<textarea class="sec-sentence" placeholder="Your one sentence for this section…"></textarea></div>';
       var ta = sec.querySelector(".sec-sentence");
       var cnt = sec.querySelector(".seccount");
-      var dutyDefault = (c.name === "Duty & Job Performance" && pref.profile && DUTIES[pref.profile.cls]) ? DUTIES[pref.profile.cls] : "";
-      ta.value = pref.sentences[c.name] || dutyDefault;
+      ta.value = pref.sentences[c.name] || bullets.join("; ");
       function tick() { cnt.textContent = ta.value.length + " chars"; }
       tick();
       ta.addEventListener("input", function () { pref.sentences[c.name] = ta.value; savePref(); tick(); });
@@ -914,50 +911,18 @@
     cl.onchange = function () { pref.profile.cls = cl.value; savePref(); openExport(); };
   }
   function sectionText(c) {
-    var t = (pref.sentences && pref.sentences[c.name]) || "";
-    if (!t && c.name === "Duty & Job Performance" && pref.profile) t = DUTIES[pref.profile.cls] || "";
-    return t;
-  }
-  function generatePDF() {
-    var ctor = window.jspdf && window.jspdf.jsPDF;
-    if (!ctor) { toast("PDF tool still loading — try again in a sec"); return; }
-    var p = pref.profile || {};
-    var doc = new ctor({ unit: "pt", format: "letter" });
-    var M = 54, RIGHT = 612 - 54, y = 58;
-    doc.setFont("helvetica", "bold"); doc.setFontSize(15);
-    doc.text("USAFA Form 715a - Cadet Rater Assessment", M, y);
-    doc.setDrawColor(160); doc.line(M, y + 8, RIGHT, y + 8); y += 32;
-    doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text("Name: " + (p.name || "____________________"), M, y);
-    doc.text("Squadron: " + (p.sqdn || "________"), M + 310, y); y += 16;
-    doc.text("Class: " + (p.cls || "____"), M, y);
-    doc.text("Date: " + new Date().toLocaleDateString(), M + 310, y); y += 28;
-    CATS.forEach(function (c) {
-      doc.setFont("helvetica", "bold"); doc.setFontSize(11);
-      doc.text(c.name, M, y); y += 15;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-      var txt = sectionText(c) || "(no entry)";
-      var lines = doc.splitTextToSize(txt, RIGHT - M);
-      doc.text(lines, M, y); y += lines.length * 13 + 8;
-      doc.setTextColor(110);
-      doc.text("Supervisor:  [ ] Exceeds Standards    [ ] Meets Standards    [ ] Below Standards", M, y);
-      doc.setTextColor(0); y += 28;
-      if (y > 700) { doc.addPage(); y = 58; }
-    });
-    y += 4; doc.setDrawColor(160); doc.line(M, y, RIGHT, y); y += 26;
-    doc.text("Ratee signature: __________________________    Date: ____________", M, y); y += 26;
-    doc.text("Rater signature: __________________________    Date: ____________", M, y); y += 34;
-    doc.setFontSize(8); doc.setTextColor(140);
-    doc.text("Prepared with Falcon Bullets" + (p.name ? " — " + p.name : ""), M, y);
-    doc.save("715a-" + ((p.name || "cadet").replace(/[^a-z0-9]+/gi, "_")) + ".pdf");
-    toast("715a PDF downloaded");
+    if (pref.sentences && pref.sentences[c.name]) return pref.sentences[c.name];
+    var bullets = store.filter(function (e) { return e.cat === c.name; })
+      .map(function (e) { return buildBullet(e.action, e.impact, e.result, false) || e.title; });
+    return bullets.join("; ");
   }
   function copyAllSentences() {
+    var p = pref.profile || {};
+    var head = "Name: " + (p.name || "") + "\nSquadron: " + (p.sqdn || "") + "\nClass: " + (p.cls || "") + "\n\n";
     var out = CATS.map(function (c) { return c.name + ":\n" + (sectionText(c) || "(none)"); }).join("\n\n");
-    copyText(out, "All sections copied");
+    copyText(head + out, "Copied — paste into the 715a in Adobe");
   }
   $("#export715").addEventListener("click", openExport);
-  $("#downloadPdf").addEventListener("click", generatePDF);
   $("#copyAllSentences").addEventListener("click", copyAllSentences);
   $("#exportClose").addEventListener("click", function () { $("#exportModal").hidden = true; });
   $("#exportModal").addEventListener("click", function (ev) { if (ev.target === $("#exportModal")) $("#exportModal").hidden = true; });
