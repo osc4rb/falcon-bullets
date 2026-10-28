@@ -174,8 +174,11 @@
   .search input { padding-left: 36px; }
   .toolbar select { width: auto; flex: none; }
 
-  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
   @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+  .tile-weight { font-size: .7rem; font-weight: 700; color: var(--faint); }
+  .tile.active .tile-weight { color: var(--tc); }
   .tile {
     text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--line);
     border-radius: 13px; padding: 12px 13px; border-top: 3px solid var(--tc);
@@ -223,6 +226,31 @@
   }
   .import-banner .msg { flex: 1 1 200px; min-width: 0; }
   .import-banner .msg b { color: var(--fg); }
+
+  .modal-back {
+    position: fixed; inset: 0; z-index: 70; background: rgba(5,6,10,.72);
+    display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px; overflow-y: auto;
+  }
+  .modal {
+    width: 100%; max-width: 620px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 16px;
+  }
+  .modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+  .modal-head h2 { font-size: 1.05rem; }
+  .modal-head .x { margin-left: auto; cursor: pointer; background: transparent; border: none; color: var(--muted); font-size: 1.4rem; line-height: 1; padding: 2px 6px; border-radius: 7px; }
+  .modal-head .x:hover { background: var(--surface-2); color: var(--fg); }
+  .modal-body { padding: 16px 18px 20px; }
+  .modal-intro { font-size: .82rem; color: var(--muted); margin: 0 0 16px; }
+  .sec { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; border-left: 3px solid var(--sc); }
+  .sec-head { display: flex; align-items: center; gap: 8px; padding: 11px 13px; }
+  .sec-head h3 { font-size: .92rem; }
+  .sec-head .w { font-size: .72rem; font-weight: 700; color: var(--sc); background: color-mix(in srgb, var(--sc) 16%, transparent); padding: 2px 8px; border-radius: 999px; }
+  .sec-head .copy1 { margin-left: auto; }
+  .sec-src { padding: 0 13px 13px; }
+  .sec-src ul { margin: 0; padding-left: 18px; }
+  .sec-src li { font-size: .84rem; color: var(--fg); margin-bottom: 5px; }
+  .sec-none { font-size: .82rem; color: var(--faint); font-style: italic; }
+  .sec-sentence { width: 100%; margin-top: 10px; min-height: 46px; }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
@@ -361,6 +389,10 @@
 
       <div class="log-head">
         <div class="cnt"><b id="shownCount">0</b> <span id="shownNoun">entries</span></div>
+        <button class="btn btn-primary btn-sm" id="export715">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>
+          Export for 715a
+        </button>
         <button class="btn btn-ghost btn-sm" id="copyAll">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copy all shown
@@ -370,6 +402,19 @@
       <div class="list" id="list"></div>
     </div>
   </main>
+</div>
+
+<div class="modal-back" id="exportModal" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Export for 715a</h2>
+      <button class="x" id="exportClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-intro">The 715a asks for <b>one sentence per section</b>. Your logged bullets are grouped below by the four rated areas — use them as raw material, write your sentence in each box, then copy it into the form in Adobe.</p>
+      <div id="exportSections"></div>
+    </div>
+  </div>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -387,11 +432,10 @@
   var DEFAULT_LIMIT = 350;
 
   var CATS = [
-    { name: "Military & Leadership", short: "Military", color: "var(--c-mil)" },
-    { name: "Academics",             short: "Academics", color: "var(--c-acad)" },
-    { name: "Athletics",             short: "Athletics", color: "var(--c-ath)" },
-    { name: "Character & Community", short: "Character", color: "var(--c-char)" },
-    { name: "Other",                 short: "Other",     color: "var(--c-other)" }
+    { name: "Duty & Job Performance",      short: "Duty & Job",  weight: "40%", color: "var(--c-mil)" },
+    { name: "Leadership & Initiative",     short: "Leadership",  weight: "35%", color: "var(--c-acad)" },
+    { name: "Out of Squadron Contribution",short: "Out of Sqdn", weight: "15%", color: "var(--c-ath)" },
+    { name: "Presence & Attitude",         short: "Presence",    weight: "10%", color: "var(--c-char)" }
   ];
   function catColor(name) {
     for (var i = 0; i < CATS.length; i++) if (CATS[i].name === name) return CATS[i].color;
@@ -568,7 +612,7 @@
       t.type = "button";
       t.className = "tile" + (activeCat === c.name ? " active" : "");
       t.style.setProperty("--tc", c.color);
-      t.innerHTML = '<div class="tile-count">' + count + '</div><div class="tile-name">' + c.short + '</div>';
+      t.innerHTML = '<div class="tile-top"><div class="tile-count">' + count + '</div><div class="tile-weight">' + (c.weight || "") + '</div></div><div class="tile-name">' + c.short + '</div>';
       t.addEventListener("click", function () { activeCat = (activeCat === c.name) ? "" : c.name; renderTiles(); renderList(); });
       el.appendChild(t);
     });
@@ -795,6 +839,37 @@
     var lines = rows.map(function (e) { return buildBullet(e.action, e.impact, e.result, pref.dash !== false) || e.title; });
     copyText(lines.join("\n"), rows.length + " bullets copied");
   });
+
+  // ---- Export for 715a: one sentence per rated section ----
+  function openExport() {
+    if (!pref.sentences) pref.sentences = {};
+    var wrap = $("#exportSections");
+    wrap.innerHTML = "";
+    CATS.forEach(function (c) {
+      var bullets = store.filter(function (e) { return e.cat === c.name; })
+        .map(function (e) { return buildBullet(e.action, e.impact, e.result, false) || e.title; });
+      var sec = document.createElement("div");
+      sec.className = "sec";
+      sec.style.setProperty("--sc", c.color);
+      var src = bullets.length
+        ? '<ul>' + bullets.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join("") + '</ul>'
+        : '<div class="sec-none">No bullets logged in this area yet.</div>';
+      sec.innerHTML =
+        '<div class="sec-head"><h3>' + esc(c.name) + '</h3><span class="w">' + c.weight + '</span>' +
+        '<button class="btn btn-ghost btn-sm copy1" type="button">Copy sentence</button></div>' +
+        '<div class="sec-src">' + src +
+        '<textarea class="sec-sentence" placeholder="Your one sentence for this section…"></textarea></div>';
+      var ta = sec.querySelector(".sec-sentence");
+      ta.value = pref.sentences[c.name] || "";
+      ta.addEventListener("input", function () { pref.sentences[c.name] = ta.value; savePref(); });
+      sec.querySelector(".copy1").addEventListener("click", function () { copyText(ta.value, "Sentence copied"); });
+      wrap.appendChild(sec);
+    });
+    $("#exportModal").hidden = false;
+  }
+  $("#export715").addEventListener("click", openExport);
+  $("#exportClose").addEventListener("click", function () { $("#exportModal").hidden = true; });
+  $("#exportModal").addEventListener("click", function (ev) { if (ev.target === $("#exportModal")) $("#exportModal").hidden = true; });
 
   // ---- toast ----
   var tT = null;
