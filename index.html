@@ -1,6 +1,7 @@
 <title>Falcon Bullets</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
   :root {
     --bg: #0a0b0f;
@@ -256,6 +257,11 @@
   .exp-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
   @media (max-width: 520px) { .exp-details { grid-template-columns: 1fr 1fr; } }
   .exp-footer { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .exp-h { font-size: .74rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 6px 0 10px; }
+  .exp-desc { min-height: 84px; }
+  .sec-hint { font-size: .74rem; color: var(--faint); padding: 0 13px; margin-top: -6px; margin-bottom: 8px; }
+  .seccount.warn { color: var(--c-char); font-weight: 700; }
+  .seccount.over { color: var(--danger); font-weight: 700; }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
@@ -285,7 +291,7 @@
       <div id="authMsg" class="auth-msg" hidden></div>
       <div class="auth-field">
         <label class="lab" for="au-email">Academy email</label>
-        <input type="email" id="au-email" placeholder="you@afacademy.edu" autocomplete="email" required>
+        <input type="email" id="au-email" placeholder="c29first.last@afacademy.af.edu" autocomplete="email" required>
       </div>
       <div class="auth-field">
         <label class="lab" for="au-pass">Password</label>
@@ -293,7 +299,7 @@
       </div>
       <button type="submit" class="btn btn-primary btn-block" id="authSubmit">Log in</button>
     </form>
-    <div class="auth-note" id="authNote">Use your @afacademy.edu email. Your bullets sync to every device you log in on.</div>
+    <div class="auth-note" id="authNote">Use your @afacademy.af.edu email. Your bullets sync to every device you log in on.</div>
   </div>
 </div>
 
@@ -380,7 +386,7 @@
         <div class="cnt"><b id="shownCount">0</b> <span id="shownNoun">entries</span></div>
         <button class="btn btn-primary btn-sm" id="export715">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>
-          Export for 715a
+          Fill my 715a
         </button>
         <button class="btn btn-ghost btn-sm" id="copyAll">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -396,21 +402,34 @@
 <div class="modal-back" id="exportModal" hidden>
   <div class="modal">
     <div class="modal-head">
-      <h2>Export for 715a</h2>
+      <h2>Fill my 715a</h2>
       <button class="x" id="exportClose" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro">Your name and class are pulled from your email. Each section starts from your logged bullets — trim each to one tight sentence. Then <b>Copy everything</b>, open the real 715a in Adobe (where you sign with CAC), and paste. Only the checkmarks and signatures are left.</p>
+      <p class="modal-intro">Everything below goes straight onto the real USAFA Form 715A. Your info is filled in from your email, and each section starts from your logged bullets &mdash; trim each to one sentence, then download. Open the file in Adobe Acrobat; your supervisor checks the boxes and signs with CAC.</p>
+
+      <div class="exp-h">I. Ratee identification data</div>
       <div class="exp-details">
-        <div><label class="lab" for="p-name">Name</label><input type="text" id="p-name" placeholder="Last, First"></div>
-        <div><label class="lab" for="p-sqdn">Squadron</label><input type="text" id="p-sqdn" placeholder="CS-00"></div>
-        <div><label class="lab" for="p-class">Class</label><select id="p-class"></select></div>
+        <div><label class="lab" for="p-name">1. Name</label><input type="text" id="p-name" placeholder="Last, First"></div>
+        <div><label class="lab" for="p-classrank">2. Class year and rank</label><input type="text" id="p-classrank" placeholder="2029 - C3C (Cadet Staff Sergeant)"></div>
+        <div><label class="lab" for="p-unit">3. Unit</label><input type="text" id="p-unit" placeholder="CS-06"></div>
       </div>
+      <div class="exp-details">
+        <div><label class="lab" for="p-class">Class</label><select id="p-class"></select></div>
+        <div><label class="lab" for="p-dutytitle">4. Duty title</label><input type="text" id="p-dutytitle"></div>
+        <div><label class="lab" for="p-semester">5. Semester</label><input type="text" id="p-semester" placeholder="Fall 2026"></div>
+      </div>
+      <div class="field">
+        <label class="lab" for="p-dutydesc">6. Duty description</label>
+        <textarea id="p-dutydesc" class="exp-desc"></textarea>
+      </div>
+
+      <div class="exp-h">II. Cadet rater assessment &mdash; one sentence each</div>
       <div id="exportSections"></div>
       <div class="exp-footer">
-        <button class="btn btn-primary" id="copyAllSentences">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Copy everything for the 715a
+        <button class="btn btn-primary" id="download715">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download filled 715a
         </button>
       </div>
     </div>
@@ -425,24 +444,37 @@
 
   var SUPABASE_URL = "https://rfpkukgaiuguhgkdzgqk.supabase.co";
   var SUPABASE_KEY = "sb_publishable_oy_DMlnMysY0J1oBkAZEuw_OWGhd_Xh";
-  var EMAIL_DOMAIN = "@afacademy.edu";
+  var EMAIL_DOMAIN = "@afacademy.af.edu";
 
   var PREF = "falconBullets.pref";
   var LOCAL = "falconBullets.v1";
   var DEFAULT_LIMIT = 350;
 
+  // The four Section II boxes on USAFA Form 715A, in order.
   var CATS = [
-    { name: "Duty & Job Performance",      short: "Duty & Job",  weight: "40%", color: "var(--c-mil)" },
-    { name: "Leadership & Initiative",     short: "Leadership",  weight: "35%", color: "var(--c-acad)" },
-    { name: "Out of Squadron Contribution",short: "Out of Sqdn", weight: "15%", color: "var(--c-ath)" },
-    { name: "Presence & Attitude",         short: "Presence",    weight: "10%", color: "var(--c-char)" }
+    { key: "s1", name: "Executing the Mission", short: "Mission",   hint: "Job proficiency, adaptability, initiative",                    color: "var(--c-mil)" },
+    { key: "s2", name: "Leading People",        short: "People",    hint: "Inclusion & teamwork, emotional intelligence, communication",  color: "var(--c-acad)" },
+    { key: "s3", name: "Managing Resources",    short: "Resources", hint: "Accountability, stewardship",                                  color: "var(--c-ath)" },
+    { key: "s4", name: "Improving the Unit",    short: "Unit",      hint: "Innovation, decision making",                                  color: "var(--c-char)" }
   ];
+  // Older entries used different area names; file them under the matching 715a box.
+  var LEGACY_CATS = {
+    "Duty & Job Performance": "Executing the Mission", "Leadership & Initiative": "Leading People",
+    "Out of Squadron Contribution": "Improving the Unit", "Presence & Attitude": "Managing Resources",
+    "Military & Leadership": "Leading People", "Academics": "Executing the Mission",
+    "Athletics": "Improving the Unit", "Character & Community": "Managing Resources", "Other": "Executing the Mission"
+  };
   var CLASSES = ["C4C", "C3C", "C2C", "C1C"];
-  var DUTIES = {
-    "C4C": "As a Four Degree, performed assigned basic tasks to standard while learning and conforming to USAFA and Department of the Air Force standards, customs, courtesies, heritage, and core values.",
-    "C3C": "As a Three Degree, developed subordinates and ensured effective accomplishment of assigned tasks through responsible training, subordinate supervision, and task execution.",
-    "C2C": "As a Two Degree, served as a primary military trainer, advisor, supervisor, and mentor for the Three and Four Degrees under charge, integrating their talents and articulating risk to accomplish the mission per Firstie intent.",
-    "C1C": "As a Firstie, led and directed the team to execute the mission, managed risk and resources, developed and maintained squadron culture, and safeguarded the morale, well-being, and welfare of those under charge."
+  // Class roles (USAFAI cadet expectations), used for Duty Title / Duty Description.
+  var CLASS_ROLE = {
+    C4C: { title: "C4C (Follower)", rank: "Cadet Airman",
+      desc: "C4C (Follower). Four Degrees are learning and adapting to the Profession of Arms via military service and require significant supervision and support. They are expected to demonstrate proficiency at performing basic tasks and understanding and conforming to USAFA standards, Department of the Air Force standards, customs, courtesies, heritage, and core values." },
+    C3C: { title: "C3C (Supervisor)", rank: "Cadet Staff Sergeant",
+      desc: "C3C (Supervisor). Three Degrees are responsible for their subordinates’ development and the effective accomplishment of assigned tasks. They are expected to demonstrate proficiency in responsible training, subordinate supervision, and task execution." },
+    C2C: { title: "C2C (Team Leader)", rank: "",
+      desc: "C2C (Team Leader). Two Degrees lead teams following orders and Commander’s intent established by the Firstie leaders. Two Degrees serve as the primary military trainers, advisors, supervisors, and mentors for the Three Degrees and Four Degrees under their charge to further grow and develop them into their future roles. Two Degrees are expected to demonstrate proficiency and articulate risk while integrating their subordinates’ talents, skills, and abilities with other teams to effectively accomplish the mission." },
+    C1C: { title: "C1C (Unit Leader)", rank: "",
+      desc: "C1C (Unit Leaders). Firsties are the main individuals who are responsible for managing risk and developing and maintaining squadron culture. Firsties command their teams by directing them to complete tasks and missions. Firsties are in charge of executing the mission, leading people under their command, managing resources, and improving the squadron. They are to demonstrate proficiency in leading people to accomplish the mission while promoting and safeguarding the morale, physical well-being, and general welfare of persons under their charge." }
   };
   function catColor(name) {
     for (var i = 0; i < CATS.length; i++) if (CATS[i].name === name) return CATS[i].color;
@@ -593,9 +625,13 @@
   sb.auth.getSession().then(function (r) { route(r.data.session); });
 
   // ---- data (cloud) ----
+  function normCat(c) {
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].name === c) return c;
+    return LEGACY_CATS[c] || CATS[0].name;
+  }
   function rowToEntry(r) {
     return {
-      id: r.id, date: r.date || "", cat: r.cat || "Other", title: r.title || "",
+      id: r.id, date: r.date || "", cat: normCat(r.cat), title: r.title || "",
       action: r.action || "", impact: r.impact || "", result: r.result || "",
       notes: r.notes || "", tags: Array.isArray(r.tags) ? r.tags : [], createdAt: r.created_at || ""
     };
@@ -726,7 +762,7 @@
     var e = store.filter(function (x) { return x.id === id; })[0];
     if (!e) return;
     editingId = id;
-    F.cat.value = e.cat || "Other";
+    F.cat.value = normCat(e.cat);
     F.title.value = e.title || ""; F.action.value = e.action || "";
     F.impact.value = e.impact || ""; F.result.value = e.result || "";
     updatePreview();
@@ -796,7 +832,7 @@
     if (!local.length) { $("#importBanner").hidden = true; return; }
     var rows = local.map(function (e) {
       return {
-        user_id: currentUser.id, date: e.date || null, cat: e.cat || "Other", title: e.title || "",
+        user_id: currentUser.id, date: e.date || null, cat: normCat(e.cat), title: e.title || "",
         action: e.action || "", impact: e.impact || "", result: e.result || "", notes: e.notes || "",
         tags: Array.isArray(e.tags) ? e.tags : []
       };
@@ -863,67 +899,181 @@
     copyText(lines.join("\n"), rows.length + " bullets copied");
   });
 
-  // ---- Export for 715a: one sentence per rated section ----
-  function openExport() {
-    if (!pref.sentences) pref.sentences = {};
-    wireExportProfile();
-    var wrap = $("#exportSections");
-    wrap.innerHTML = "";
-    CATS.forEach(function (c) {
-      var bullets = store.filter(function (e) { return e.cat === c.name; })
-        .map(function (e) { return buildBullet(e.action, e.impact, e.result, false) || e.title; });
-      var sec = document.createElement("div");
-      sec.className = "sec";
-      sec.style.setProperty("--sc", c.color);
-      var src = bullets.length
-        ? '<ul>' + bullets.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join("") + '</ul>'
-        : '<div class="sec-none">No bullets logged in this area yet.</div>';
-      sec.innerHTML =
-        '<div class="sec-head"><h3>' + esc(c.name) + '</h3>' +
-        '<span class="seccount"></span>' +
-        '<button class="btn btn-ghost btn-sm copy1" type="button">Copy</button></div>' +
-        '<div class="sec-src">' + src +
-        '<textarea class="sec-sentence" placeholder="Your one sentence for this section…"></textarea></div>';
-      var ta = sec.querySelector(".sec-sentence");
-      var cnt = sec.querySelector(".seccount");
-      ta.value = pref.sentences[c.name] || bullets.join("; ");
-      function tick() { cnt.textContent = ta.value.length + " chars"; }
-      tick();
-      ta.addEventListener("input", function () { pref.sentences[c.name] = ta.value; savePref(); tick(); });
-      sec.querySelector(".copy1").addEventListener("click", function () { copyText(ta.value, "Sentence copied"); });
-      wrap.appendChild(sec);
-    });
-    $("#exportModal").hidden = false;
-  }
+  // ---- Fill my 715a: writes straight onto the fillable copy of the form ----
+  var SECTION_TARGET = 400;  // about what fits in a Section II box at the form's normal 9pt
+  var SECTION_MAX = 600;     // past this the text has to shrink a lot to fit
+
   function ensureClassOptions() {
     var sel = $("#p-class");
     if (sel.options.length) return;
     var blank = document.createElement("option"); blank.value = ""; blank.textContent = "—"; sel.appendChild(blank);
     CLASSES.forEach(function (cl) { var o = document.createElement("option"); o.value = cl; o.textContent = cl; sel.appendChild(o); });
   }
-  function wireExportProfile() {
-    if (!pref.profile) pref.profile = {};
-    ensureClassOptions();
-    var n = $("#p-name"), s = $("#p-sqdn"), cl = $("#p-class");
-    n.value = pref.profile.name || ""; s.value = pref.profile.sqdn || ""; cl.value = pref.profile.cls || "";
-    n.oninput = function () { pref.profile.name = n.value; savePref(); };
-    s.oninput = function () { pref.profile.sqdn = s.value; savePref(); };
-    cl.onchange = function () { pref.profile.cls = cl.value; savePref(); openExport(); };
+  function semesterNow() {
+    var d = new Date();
+    return (d.getMonth() >= 6 ? "Fall " : "Spring ") + d.getFullYear();
+  }
+  function classRankFor(cls) {
+    if (!cls) return "";
+    var der = deriveProfile(currentUser ? currentUser.email : "");
+    var role = CLASS_ROLE[cls] || {};
+    return (der.gradYear ? der.gradYear + " - " : "") + cls + (role.rank ? " (" + role.rank + ")" : "");
+  }
+  // The 715a values: the cadet's saved edits first, then defaults from their email and class.
+  function f715() {
+    if (!pref.p715) pref.p715 = {};
+    var p = pref.p715, prof = pref.profile || {}, cls = p.cls != null ? p.cls : (prof.cls || "");
+    var role = CLASS_ROLE[cls] || {};
+    return {
+      cls: cls,
+      name: p.name != null ? p.name : (prof.name || ""),
+      class_rank: p.class_rank != null ? p.class_rank : classRankFor(cls),
+      unit: p.unit != null ? p.unit : (prof.sqdn || ""),
+      semester: p.semester != null ? p.semester : semesterNow(),
+      duty_title: p.duty_title != null ? p.duty_title : (role.title || ""),
+      duty_desc: p.duty_desc != null ? p.duty_desc : (role.desc || "")
+    };
+  }
+  function bulletsFor(c) {
+    return store.filter(function (e) { return e.cat === c.name; })
+      .map(function (e) { return buildBullet(e.action, e.impact, e.result, false) || e.title; });
   }
   function sectionText(c) {
-    if (pref.sentences && pref.sentences[c.name]) return pref.sentences[c.name];
-    var bullets = store.filter(function (e) { return e.cat === c.name; })
-      .map(function (e) { return buildBullet(e.action, e.impact, e.result, false) || e.title; });
-    return bullets.join("; ");
+    if (pref.sentences && pref.sentences[c.key] != null) return pref.sentences[c.key];
+    return bulletsFor(c).join("; ");
   }
-  function copyAllSentences() {
-    var p = pref.profile || {};
-    var head = "Name: " + (p.name || "") + "\nSquadron: " + (p.sqdn || "") + "\nClass: " + (p.cls || "") + "\n\n";
-    var out = CATS.map(function (c) { return c.name + ":\n" + (sectionText(c) || "(none)"); }).join("\n\n");
-    copyText(head + out, "Copied — paste into the 715a in Adobe");
+
+  function openExport() {
+    if (!pref.sentences) pref.sentences = {};
+    ensureClassOptions();
+    var v = f715();
+    [["#p-name", "name"], ["#p-classrank", "class_rank"], ["#p-unit", "unit"],
+     ["#p-dutytitle", "duty_title"], ["#p-semester", "semester"], ["#p-dutydesc", "duty_desc"]].forEach(function (b) {
+      var el = $(b[0]); el.value = v[b[1]];
+      el.oninput = function () { pref.p715[b[1]] = el.value; savePref(); };
+    });
+    var cl = $("#p-class"); cl.value = v.cls;
+    cl.onchange = function () {
+      // Picking a different class resets the class-driven boxes to that class's wording.
+      pref.p715.cls = cl.value;
+      delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
+      savePref(); openExport();
+    };
+
+    var wrap = $("#exportSections");
+    wrap.innerHTML = "";
+    CATS.forEach(function (c, i) {
+      var bullets = bulletsFor(c);
+      var sec = document.createElement("div");
+      sec.className = "sec";
+      sec.style.setProperty("--sc", c.color);
+      var src = bullets.length
+        ? '<ul>' + bullets.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join("") + '</ul>'
+        : '<div class="sec-none">No bullets logged in this section yet.</div>';
+      sec.innerHTML =
+        '<div class="sec-head"><h3>' + (i + 1) + '. ' + esc(c.name) + '</h3><span class="seccount"></span></div>' +
+        '<div class="sec-hint">' + esc(c.hint) + '</div>' +
+        '<div class="sec-src">' + src +
+        '<textarea class="sec-sentence" placeholder="One sentence: what you did, why it mattered, the result"></textarea></div>';
+      var ta = sec.querySelector(".sec-sentence"), cnt = sec.querySelector(".seccount");
+      ta.value = sectionText(c);
+      function tick() {
+        var n = ta.value.length;
+        cnt.textContent = n + " / " + SECTION_TARGET;
+        cnt.classList.toggle("warn", n > SECTION_TARGET && n <= SECTION_MAX);
+        cnt.classList.toggle("over", n > SECTION_MAX);
+        cnt.title = n > SECTION_MAX ? "Too long — it will print very small" : n > SECTION_TARGET ? "Will print a little smaller to fit" : "";
+      }
+      tick();
+      ta.addEventListener("input", function () { pref.sentences[c.key] = ta.value; savePref(); tick(); });
+      wrap.appendChild(sec);
+    });
+    $("#exportModal").hidden = false;
   }
+
+  // Swap characters the form's font can't print (e.g. non-breaking hyphens) for plain ones.
+  function printable(font, text) {
+    var ok = {};
+    font.getCharacterSet().forEach(function (cp) { ok[cp] = 1; });
+    var swap = { 0x2010: "-", 0x2011: "-", 0x2012: "-", 0x00A0: " ", 0x2009: " ", 0x202F: " ", 0x2026: "..." };
+    var out = "";
+    for (var i = 0; i < text.length; i++) {
+      var cp = text.charCodeAt(i);
+      if (cp === 10 || ok[cp]) out += text[i];
+      else if (swap[cp]) out += swap[cp];
+    }
+    return out;
+  }
+  // Largest font size (up to max) at which the text fits inside a w x h point box.
+  // Mirrors pdf-lib's own layout: 1pt padding, greedy word wrap, lines 1.2x the font height.
+  function fitSize(font, text, w, h, max, multiline) {
+    var bw = w - 2, bh = h - 2;
+    for (var s = max; s > 5; s -= 0.25) {
+      if (!multiline) { if (font.widthOfTextAtSize(text, s) < bw) return s; continue; }
+      var lines = 0;
+      text.split("\n").forEach(function (para) {
+        var cur = "";
+        para.split(/\s+/).filter(Boolean).forEach(function (wd) {
+          var t = cur ? cur + " " + wd : wd;
+          if (!cur || font.widthOfTextAtSize(t, s) < bw) cur = t; else { lines++; cur = wd; }
+        });
+        lines++;
+      });
+      var fh = font.heightAtSize(s);
+      if (lines * fh * 1.2 + fh * 0.25 <= bh) return s;
+    }
+    return 5;
+  }
+  function fileNameFor(name) {
+    var parts = (name || "").split(",");
+    var clean = function (s) { return (s || "").toUpperCase().replace(/[^A-Z0-9]+/g, ""); };
+    var last = clean(parts[0]) || "LASTNAME", first = clean((parts[1] || "").trim().split(/\s+/)[0]) || "FIRSTNAME";
+    return last + "_" + first + "_USAFA715A.pdf";
+  }
+  function download715() {
+    if (!window.PDFLib) { toast("PDF tool still loading — try again in a moment"); return; }
+    var btn = $("#download715"); btn.disabled = true;
+    var v = f715();
+    var values = { name: v.name, class_rank: v.class_rank, unit: v.unit, semester: v.semester,
+                   duty_title: v.duty_title, duty_desc: v.duty_desc };
+    CATS.forEach(function (c) { values[c.key] = sectionText(c); });
+    var multi = { duty_desc: 1, s1: 1, s2: 1, s3: 1, s4: 1 };
+
+    fetch("usafa715a-fillable.pdf").then(function (r) {
+      if (!r.ok) throw new Error("form file missing");
+      return r.arrayBuffer();
+    }).then(function (bytes) {
+      return PDFLib.PDFDocument.load(bytes);
+    }).then(function (pdf) {
+      return pdf.embedFont(PDFLib.StandardFonts.Helvetica).then(function (helv) {
+        var form = pdf.getForm();
+        Object.keys(values).forEach(function (k) {
+          var field = form.getTextField(k);
+          var text = printable(helv, (values[k] || "").trim());
+          if (!multi[k]) text = text.replace(/\n+/g, " ");
+          var rect = field.acroField.getWidgets()[0].getRectangle();
+          field.setText(text);
+          field.setFontSize(text ? fitSize(helv, text, rect.width, rect.height, 9, !!multi[k]) : 9);
+        });
+        form.updateFieldAppearances(helv);
+        return pdf.save();
+      });
+    }).then(function (out) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([out], { type: "application/pdf" }));
+      a.download = fileNameFor(v.name);
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      btn.disabled = false;
+      toast("Downloaded — open it in Adobe Acrobat to sign");
+    }).catch(function (err) {
+      btn.disabled = false;
+      toast("Couldn't build the 715a: " + err.message);
+    });
+  }
+
   $("#export715").addEventListener("click", openExport);
-  $("#copyAllSentences").addEventListener("click", copyAllSentences);
+  $("#download715").addEventListener("click", download715);
   $("#exportClose").addEventListener("click", function () { $("#exportModal").hidden = true; });
   $("#exportModal").addEventListener("click", function (ev) { if (ev.target === $("#exportModal")) $("#exportModal").hidden = true; });
 
