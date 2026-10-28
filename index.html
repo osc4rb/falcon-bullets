@@ -2,6 +2,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0b0f;
@@ -421,25 +422,23 @@
       <button class="x" id="exportClose" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="modal-intro">Everything below goes straight onto the real USAFA Form 715A. Your info is filled in from your email, and each section starts from your logged bullets &mdash; trim each to one sentence, then download. Open the file in Adobe Acrobat; your supervisor checks the boxes and signs with CAC.</p>
-
       <div class="exp-h exp-h-row">I. Ratee identification data
         <button class="btn btn-ghost btn-sm" id="p-edit" type="button">Edit</button></div>
       <div class="field">
-        <label class="lab">Your class <span class="opt" id="p-class-src"></span></label>
+        <label class="lab">Class</label>
         <div class="classpick" id="p-classpick"></div>
       </div>
       <div class="exp-details">
         <div><label class="lab" for="p-name">1. Name</label><input type="text" id="p-name" class="auto" placeholder="Last, First"></div>
         <div><label class="lab" for="p-classrank">2. Class year and rank</label><input type="text" id="p-classrank" class="auto"></div>
-        <div><label class="lab" for="p-unit">3. Unit <span class="opt">&middot; type once</span></label><input type="text" id="p-unit" placeholder="CS-06"></div>
+        <div><label class="lab" for="p-unit">3. Unit</label><input type="text" id="p-unit" placeholder="CS-06"></div>
       </div>
       <div class="exp-details exp-two">
         <div><label class="lab" for="p-dutytitle">4. Duty title</label><input type="text" id="p-dutytitle" class="auto"></div>
         <div><label class="lab" for="p-semester">5. Semester</label><input type="text" id="p-semester" class="auto"></div>
       </div>
       <div class="field" id="p-job-wrap" hidden>
-        <label class="lab" for="p-job">Job <span class="opt">&middot; optional &mdash; leave on your class role, or pick your squadron job</span></label>
+        <label class="lab" for="p-job">Job (optional)</label>
         <select id="p-job"></select>
       </div>
       <div class="field">
@@ -648,7 +647,7 @@
       if (!pref.profile.name && der.name) pref.profile.name = der.name;
       if (!pref.profile.cls && der.cls) pref.profile.cls = der.cls;
       savePref();
-      if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadBullets(); loadPositions(); }
+      if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadDraft(); loadBullets(); loadPositions(); }
     } else {
       currentUser = null; loadedFor = null; store = []; POSITIONS = null;
       $("#appRoot").hidden = true;
@@ -934,8 +933,8 @@
   });
 
   // ---- Fill my 715a: writes straight onto the fillable copy of the form ----
-  var SECTION_TARGET = 400;  // about what fits in a Section II box at the form's normal 9pt
-  var SECTION_MAX = 600;     // past this the text has to shrink a lot to fit
+  var SECTION_TARGET = 440;  // about what fits in a Section II box at the form's normal 9pt
+  var SECTION_MAX = 640;     // past this the text has to shrink a lot to fit
 
   var CLASS_NAMES = { C4C: "Four Degree", C3C: "Three Degree", C2C: "Two Degree", C1C: "Firstie" };
   function renderClassPick(cls) {
@@ -950,7 +949,7 @@
         // A different class resets the class-driven boxes to that class's wording.
         pref.p715.cls = c;
         delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
-        savePref(); openExport();
+        save715(); openExport();
       });
       box.appendChild(b);
     });
@@ -994,6 +993,28 @@
     for (var i = 0; i < POSITIONS.length; i++) if (String(POSITIONS[i].id) === String(id)) return POSITIONS[i];
     return null;
   }
+  // ---- 715a draft follows the login: kept on the account (user metadata), cached locally ----
+  var draftT = null;
+  function loadDraft() {
+    var uid = currentUser.id;
+    if (pref.draftOwner !== uid) { pref.p715 = {}; pref.sentences = {}; pref.draftOwner = uid; savePref(); }
+    sb.auth.getUser().then(function (r) {
+      var md = (r.data && r.data.user && r.data.user.user_metadata) || {};
+      if (!currentUser || currentUser.id !== uid) return;
+      if (md.p715) pref.p715 = md.p715;
+      if (md.sentences) pref.sentences = md.sentences;
+      savePref();
+      if (!$("#exportModal").hidden) openExport();
+    });
+  }
+  function save715() {
+    savePref();
+    clearTimeout(draftT);
+    draftT = setTimeout(function () {
+      if (currentUser) sb.auth.updateUser({ data: { p715: pref.p715 || {}, sentences: pref.sentences || {} } });
+    }, 800);
+  }
+
   function loadPositions() {
     sb.from("positions").select("id,display,rank,additional,summary,grp").order("id").then(function (res) {
       POSITIONS = (!res.error && res.data && res.data.length) ? res.data : null;
@@ -1058,10 +1079,9 @@
     [["#p-name", "name"], ["#p-classrank", "class_rank"], ["#p-unit", "unit"],
      ["#p-dutytitle", "duty_title"], ["#p-semester", "semester"], ["#p-dutydesc", "duty_desc"]].forEach(function (b) {
       var el = $(b[0]); el.value = v[b[1]];
-      el.oninput = function () { pref.p715[b[1]] = el.value; savePref(); };
+      el.oninput = function () { pref.p715[b[1]] = el.value; save715(); };
     });
     renderClassPick(v.cls);
-    $("#p-class-src").textContent = !v.cls ? "· tap yours" : v.fromEmail ? "· picked from your email" : "";
     Array.prototype.forEach.call(document.querySelectorAll("#exportModal .auto"), function (el) { el.readOnly = !editing715; });
     $("#p-edit").textContent = editing715 ? "Done" : "Edit";
     $("#p-edit").onclick = function () { editing715 = !editing715; openExport(); };
@@ -1071,7 +1091,7 @@
       // Picking a job fills its title, duty summary, and rank; manual edits to those reset.
       pref.p715.job = js.value;
       delete pref.p715.class_rank; delete pref.p715.duty_title; delete pref.p715.duty_desc;
-      savePref(); openExport();
+      save715(); openExport();
     };
 
     var wrap = $("#exportSections");
@@ -1099,7 +1119,7 @@
         cnt.title = n > SECTION_MAX ? "Too long — it will print very small" : n > SECTION_TARGET ? "Will print a little smaller to fit" : "";
       }
       tick();
-      ta.addEventListener("input", function () { pref.sentences[c.key] = ta.value; savePref(); tick(); });
+      ta.addEventListener("input", function () { pref.sentences[c.key] = ta.value; save715(); tick(); });
       wrap.appendChild(sec);
     });
     $("#exportModal").hidden = false;
@@ -1118,25 +1138,54 @@
     }
     return out;
   }
-  // Largest font size (up to max) at which the text fits inside a w x h point box.
-  // Mirrors pdf-lib's own layout: 1pt padding, greedy word wrap, lines 1.2x the font height.
-  function fitSize(font, text, w, h, max, multiline) {
-    var bw = w - 2, bh = h - 2;
-    for (var s = max; s > 5; s -= 0.25) {
-      if (!multiline) { if (font.widthOfTextAtSize(text, s) < bw) return s; continue; }
-      var lines = 0;
-      text.split("\n").forEach(function (para) {
-        var cur = "";
-        para.split(/\s+/).filter(Boolean).forEach(function (wd) {
-          var t = cur ? cur + " " + wd : wd;
-          if (!cur || font.widthOfTextAtSize(t, s) < bw) cur = t; else { lines++; cur = wd; }
-        });
-        lines++;
+  // Text layout that matches how Acrobat fills the 715A: 2pt padding, lines 1.2x the font size.
+  var PAD = 2, LH = 1.2, ASC = 0.78, DESC = 0.22, CAP = 0.66;
+  function wrapLines(font, text, size, width) {
+    var out = [];
+    text.split("\n").forEach(function (para) {
+      var cur = "";
+      para.split(/\s+/).filter(Boolean).forEach(function (wd) {
+        var t = cur ? cur + " " + wd : wd;
+        if (!cur || font.widthOfTextAtSize(t, size) <= width) cur = t; else { out.push(cur); cur = wd; }
       });
-      var fh = font.heightAtSize(s);
-      if (lines * fh * 1.2 + fh * 0.25 <= bh) return s;
+      out.push(cur);
+    });
+    return out;
+  }
+  // Largest font size (up to max) at which the text fits inside a w x h point box.
+  function fitSize(font, text, w, h, max, multiline) {
+    for (var s = max; s > 5; s -= 0.25) {
+      if (!multiline) { if (font.widthOfTextAtSize(text, s) <= w - 2 * PAD) return s; continue; }
+      var n = wrapLines(font, text, s, w - 2 * PAD).length;
+      if (PAD + s * ASC + (n - 1) * s * LH + s * DESC <= h - PAD) return s;
     }
     return 5;
+  }
+  // Draws a field's text ourselves (pdf-lib's built-in layout spaces lines too far apart for this font).
+  function appearance(text, size, multiline) {
+    var P = window.PDFLib;
+    return function (field, widget, font) {
+      var r = widget.getRectangle();
+      var lines = multiline ? wrapLines(font, text, size, r.width - 2 * PAD) : [text];
+      var y = multiline ? r.height - PAD - size * ASC : (r.height - size * CAP) / 2;
+      return [P.pushGraphicsState(), P.beginMarkedContent("Tx")]
+        .concat(P.drawLinesOfText(lines.map(function (l) { return font.encodeText(l); }), {
+          color: P.rgb(0, 0, 0), font: font.name, size: size, lineHeight: size * LH,
+          rotate: P.degrees(0), xSkew: P.degrees(0), ySkew: P.degrees(0), x: PAD, y: y
+        }))
+        .concat([P.endMarkedContent(), P.popGraphicsState()]);
+    };
+  }
+  // Source Sans 3 (Adobe's open-source sibling of the form's Myriad Pro); Helvetica if it can't load.
+  function formFont(pdf) {
+    var P = window.PDFLib;
+    if (!window.fontkit) return pdf.embedFont(P.StandardFonts.Helvetica);
+    pdf.registerFontkit(window.fontkit);
+    return fetch("fonts/SourceSans3-Regular.ttf").then(function (r) {
+      if (!r.ok) throw new Error("font");
+      return r.arrayBuffer();
+    }).then(function (b) { return pdf.embedFont(b, { subset: true }); })
+      .catch(function () { return pdf.embedFont(P.StandardFonts.Helvetica); });
   }
   function fileNameFor(name) {
     var parts = (name || "").split(",");
@@ -1159,17 +1208,18 @@
     }).then(function (bytes) {
       return PDFLib.PDFDocument.load(bytes);
     }).then(function (pdf) {
-      return pdf.embedFont(PDFLib.StandardFonts.Helvetica).then(function (helv) {
+      return formFont(pdf).then(function (font) {
         var form = pdf.getForm();
         Object.keys(values).forEach(function (k) {
           var field = form.getTextField(k);
-          var text = printable(helv, (values[k] || "").trim());
+          var text = printable(font, (values[k] || "").trim());
           if (!multi[k]) text = text.replace(/\n+/g, " ");
           var rect = field.acroField.getWidgets()[0].getRectangle();
+          var size = text ? fitSize(font, text, rect.width, rect.height, 9, !!multi[k]) : 9;
           field.setText(text);
-          field.setFontSize(text ? fitSize(helv, text, rect.width, rect.height, 9, !!multi[k]) : 9);
+          field.setFontSize(size);
+          field.updateAppearances(font, appearance(text, size, !!multi[k]));
         });
-        form.updateFieldAppearances(helv);
         return pdf.save();
       });
     }).then(function (out) {
