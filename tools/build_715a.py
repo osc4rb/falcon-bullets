@@ -156,17 +156,18 @@ def main(flat_pdf, official_pdf, out_pdf):
 
     doc = pymupdf.open(flat_pdf)
 
-    # 1) Remove any old entries: redact every entry area and checkbox interior.
+    # 1) Remove any old entries: delete the line art inside each entry area and checkbox.
+    #    fill=False paints nothing, so the boxes' recessed (shaded) edges stay exactly as drawn.
     for pno, page in enumerate(doc):
         for name, (kind, multi, r) in specs[pno]:
-            page.add_redact_annot(r + (1.2, 1.2, -1.2, -1.2), fill=(1, 1, 1))
+            page.add_redact_annot(r + (1.2, 1.2, -1.2, -1.2), fill=False)
         for (rp, y, xs, _, _) in CHECK_ROWS:
             if rp == pno:
                 for x in xs:
-                    page.add_redact_annot(pymupdf.Rect(x + 0.9, y + 0.9, x + 9.1, y + 9.1), fill=(1, 1, 1))
+                    page.add_redact_annot(pymupdf.Rect(x + 0.9, y + 0.9, x + 9.1, y + 9.1), fill=False)
         if pno == 1:
             for _, r in ROLES:
-                page.add_redact_annot(r, fill=(1, 1, 1))
+                page.add_redact_annot(r, fill=False)
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE,
                               graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED,
                               text=pymupdf.PDF_REDACT_TEXT_REMOVE)
