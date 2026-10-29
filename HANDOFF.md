@@ -11,10 +11,10 @@ Get the squad filling their 715As with Falcon Bullets before strats are due (Nov
   Section II sentences, one-click download of the filled form as `LAST_FIRST_USAFA715A.pdf`.
 - Form copy pixel-identical to the original outside the entry boxes; filled text matched to Acrobat
   (Falcon Sans 415, measured layout).
+- 2026-10-29: form served from Supabase table `forms` (academy accounts only; anonymous read denied);
+  removed from the public repo (public URL now 404). Verified a live download end to end.
 
 ## In progress / waiting on the user
-- Form moved behind login: user pastes `~/Downloads/falcon-bullets-form.sql` into the Supabase SQL editor;
-  then verify the site reads table `forms`, push the site change, and untrack `usafa715a-fillable.pdf`.
 - Optional: rewrite git history to purge the earlier public copies of the form (needs force-push; ask first).
 - Job picker SQL (AFCW directory) generated locally; not loaded — user wants it later and must approve.
 - User to confirm a real `@afacademy.af.edu` login works and test CAC signing in Acrobat.
