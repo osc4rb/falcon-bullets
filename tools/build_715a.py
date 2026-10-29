@@ -147,6 +147,104 @@ def add_combo(page, name, rect, choices):
     page.add_widget(w)
 
 
+def is_bar(d):
+    """A letter part drawn as an upright rectangle: I and l stems (regular and bold), hyphens, small marks.
+
+    Italic I and l are slanted parallelograms; viewers already anti-alias those, so they are left alone.
+    """
+    r = d["rect"]
+    if not (d.get("fill") is not None and d.get("color") is None and len(d["items"]) <= 5
+            and r.width < 3 and r.height < 9):
+        return False
+    for it in d["items"]:
+        if it[0] == "re":
+            continue
+        if it[0] != "l":
+            return False
+        p, q = it[1], it[2]
+        if abs(p.x - q.x) > 0.01 and abs(p.y - q.y) > 0.01:   # a slanted edge: not a rectangle
+            return False
+    return True
+
+
+def is_stem(r):
+    """A regular-weight I or l stem (bold stems are wider and keep their exact width)."""
+    return r.width < 1.3 and 3.5 < r.height < 9
+
+
+def soften_bars(doc):
+    """Redraw rectangle-shaped letters so viewers render them like every other letter.
+
+    The flattened copy draws I and l as plain rectangles. Browsers (pdfium) snap plain rectangle
+    fills to whole pixels with hard edges, so those letters look bold next to the anti-aliased
+    curved letters. The copy was also made by printing at 600 dpi, which rounded every edge to a
+    0.12pt grid, leaving the same stem 0.84 or 0.96pt wide. Each bar is removed and redrawn with
+    the same outline (one edge as a straight-line curve, so it is no longer a "rectangle") at the
+    average width for its letter height, centered where it was.
+    """
+    bars = [[(d["rect"], d["fill"]) for d in page.get_drawings() if is_bar(d)] for page in doc]
+    by_height = {}
+    for page_bars in bars:
+        for r, _ in page_bars:
+            if is_stem(r):
+                by_height.setdefault(round(r.height, 1), []).append(r.width)
+    width = {h: sum(ws) / len(ws) for h, ws in by_height.items()}
+    for page, page_bars in zip(doc, bars):
+        for r, _ in page_bars:
+            page.add_redact_annot(r + (-0.02, -0.02, 0.02, 0.02), fill=False)
+        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE,
+                              graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED,
+                              text=pymupdf.PDF_REDACT_TEXT_NONE)
+        shape = page.new_shape()
+        for r, fill in page_bars:
+            w = width[round(r.height, 1)] if is_stem(r) else r.width
+            cx = (r.x0 + r.x1) / 2
+            x0, x1, y0, y1 = cx - w / 2, cx + w / 2, r.y0, r.y1
+            third = (y1 - y0) / 3
+            shape.draw_line((x0, y0), (x1, y0))
+            shape.draw_bezier((x1, y0), (x1, y0 + third), (x1, y1 - third), (x1, y1))
+            shape.draw_line((x1, y1), (x0, y1))
+            shape.draw_line((x0, y1), (x0, y0))
+            shape.finish(fill=fill, color=None, width=0, closePath=True)
+        shape.commit()
+    print("redrew rectangle marks:", sum(len(b) for b in bars), "| regular stem widths by height:",
+          {h: round(w, 3) for h, w in sorted(width.items())})
+
+
+SEGMENT = re.compile(rb"([-\d.]+)\s+([-\d.]+)\s+m\s+([-\d.]+)\s+([-\d.]+)\s+l\s+S")
+FIRST_CM = re.compile(rb"([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+cm")
+
+
+def remove_check_marks(doc):
+    """Delete old check marks: an X is two stroked diagonals inside a checkbox.
+
+    Redaction doesn't remove these strokes, so they are deleted from the content stream directly,
+    and only when both ends of the stroke lie inside a checkbox square.
+    """
+    removed = 0
+    for pno, page in enumerate(doc):
+        boxes = [pymupdf.Rect(x, y, x + 10, y + 10)
+                 for (rp, y, xs, _, _) in CHECK_ROWS if rp == pno for x in xs]
+        page.clean_contents()
+        xref = page.get_contents()[0]
+        raw = doc.xref_stream(xref)
+        a, _, _, d, e, f = (float(v) for v in FIRST_CM.search(raw).groups())  # the copy's base transform
+        height = page.rect.height
+
+        def drop(m):
+            nonlocal removed
+            x1, y1, x2, y2 = (float(v) for v in m.groups())
+            p1 = pymupdf.Point(a * x1 + e, height - (d * y1 + f))
+            p2 = pymupdf.Point(a * x2 + e, height - (d * y2 + f))
+            if any(p1 in b and p2 in b for b in boxes):
+                removed += 1
+                return b""
+            return m.group(0)
+
+        doc.update_stream(xref, SEGMENT.sub(drop, raw))
+    print("removed old check-mark strokes:", removed)
+
+
 def main(flat_pdf, official_pdf, out_pdf):
     tpl = load_template(official_pdf)
     form1 = tpl.find(NS + "subform")
@@ -155,6 +253,7 @@ def main(flat_pdf, official_pdf, out_pdf):
              list(zip(P2_NAMES, page_fields(pages[1])))]
 
     doc = pymupdf.open(flat_pdf)
+    remove_check_marks(doc)
 
     # 1) Remove any old entries: delete the line art inside each entry area and checkbox.
     #    fill=False paints nothing, so the boxes' recessed (shaded) edges stay exactly as drawn.
@@ -164,13 +263,15 @@ def main(flat_pdf, official_pdf, out_pdf):
         for (rp, y, xs, _, _) in CHECK_ROWS:
             if rp == pno:
                 for x in xs:
-                    page.add_redact_annot(pymupdf.Rect(x + 0.9, y + 0.9, x + 9.1, y + 9.1), fill=False)
+                    page.add_redact_annot(pymupdf.Rect(x + 0.1, y + 0.1, x + 9.9, y + 9.9), fill=False)  # covers the X, not the outline
         if pno == 1:
             for _, r in ROLES:
                 page.add_redact_annot(r, fill=False)
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE,
                               graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED,
                               text=pymupdf.PDF_REDACT_TEXT_REMOVE)
+
+    soften_bars(doc)
 
     # 2) Add fillable fields.
     for pno, page in enumerate(doc):
