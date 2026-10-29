@@ -1138,8 +1138,9 @@
     }
     return out;
   }
-  // Text layout that matches how Acrobat fills the 715A: 2pt padding, lines 1.2x the font size.
-  var PAD = 2, LH = 1.2, ASC = 0.78, DESC = 0.22, CAP = 0.66;
+  // Text layout measured against Acrobat's render of a real filled 715A (baselines within 0.25pt,
+  // same line breaks): left inset, right margin, first baseline / single-line baseline, line spacing.
+  var PADX = 0.7, RPAD = 2.5, TOP = 1.155, SINGLE = 0.765, LH = 1.2, DESC = 0.22;
   function wrapLines(font, text, size, width) {
     var out = [];
     text.split("\n").forEach(function (para) {
@@ -1155,9 +1156,9 @@
   // Largest font size (up to max) at which the text fits inside a w x h point box.
   function fitSize(font, text, w, h, max, multiline) {
     for (var s = max; s > 5; s -= 0.25) {
-      if (!multiline) { if (font.widthOfTextAtSize(text, s) <= w - 2 * PAD) return s; continue; }
-      var n = wrapLines(font, text, s, w - 2 * PAD).length;
-      if (PAD + s * ASC + (n - 1) * s * LH + s * DESC <= h - PAD) return s;
+      if (!multiline) { if (font.widthOfTextAtSize(text, s) <= w - PADX - RPAD) return s; continue; }
+      var n = wrapLines(font, text, s, w - PADX - RPAD).length;
+      if (s * TOP + (n - 1) * s * LH + s * DESC <= h - 0.4) return s;
     }
     return 5;
   }
@@ -1166,22 +1167,22 @@
     var P = window.PDFLib;
     return function (field, widget, font) {
       var r = widget.getRectangle();
-      var lines = multiline ? wrapLines(font, text, size, r.width - 2 * PAD) : [text];
-      var y = multiline ? r.height - PAD - size * ASC : (r.height - size * CAP) / 2;
+      var lines = multiline ? wrapLines(font, text, size, r.width - PADX - RPAD) : [text];
+      var y = multiline ? r.height - size * TOP : (r.height - size * SINGLE) / 2;
       return [P.pushGraphicsState(), P.beginMarkedContent("Tx")]
         .concat(P.drawLinesOfText(lines.map(function (l) { return font.encodeText(l); }), {
           color: P.rgb(0, 0, 0), font: font.name, size: size, lineHeight: size * LH,
-          rotate: P.degrees(0), xSkew: P.degrees(0), ySkew: P.degrees(0), x: PAD, y: y
+          rotate: P.degrees(0), xSkew: P.degrees(0), ySkew: P.degrees(0), x: PADX, y: y
         }))
         .concat([P.endMarkedContent(), P.popGraphicsState()]);
     };
   }
-  // Source Sans 3 (Adobe's open-source sibling of the form's Myriad Pro); Helvetica if it can't load.
+  // Falcon Sans (fonts/README.md): Source Sans 3 tuned to match the form's Myriad Pro; Helvetica fallback.
   function formFont(pdf) {
     var P = window.PDFLib;
     if (!window.fontkit) return pdf.embedFont(P.StandardFonts.Helvetica);
     pdf.registerFontkit(window.fontkit);
-    return fetch("fonts/SourceSans3-Regular.ttf").then(function (r) {
+    return fetch("fonts/FalconSans-Regular.ttf").then(function (r) {
       if (!r.ok) throw new Error("font");
       return r.arrayBuffer();
     }).then(function (b) { return pdf.embedFont(b, { subset: true }); })
