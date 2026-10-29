@@ -9,8 +9,10 @@ Brief) for strats. Live at https://osc4rb.github.io/falcon-bullets/ (GitHub Page
 - Supabase (project ref in `index.html`; the publishable key there is public by design):
   email/password auth, `bullets` table with row-level security (each user reads/writes only their rows).
   The 715A draft (Section I edits + section sentences) is stored in the user's auth `user_metadata`.
-- `usafa715a-fillable.pdf` — the real 715A artwork (from an Acrobat-flattened copy) with old entries
-  removed and AcroForm fields added at the exact XFA-template coordinates. Built by `tools/build_715a.py`.
+- The fillable 715A — the real 715A artwork (from an Acrobat-flattened copy) with old entries removed and
+  AcroForm fields added at the exact XFA-template coordinates. Built by `tools/build_715a.py`, then stored
+  in Supabase table `forms` (row `usafa715a`, base64) via `tools/build_form_sql.py`; the site reads it after
+  sign-in. It is NOT in this repo (`.gitignore` blocks it and `*.sql`).
 - `fonts/FalconSans-Regular.ttf` — Source Sans 3 tuned to match the form's Myriad Pro (see `fonts/README.md`).
 - `tools/build_positions.py` — turns the AFCW Classification Directory into SQL for a `positions` table
   (job picker). Its output is NOT committed (Cadet-Wing internal).
@@ -37,5 +39,6 @@ Brief) for strats. Live at https://osc4rb.github.io/falcon-bullets/ (GitHub Page
 - Name and class come from the login email (`c29first.last@afacademy.af.edu` -> "Last, First", 2029 -> C3C).
   Cadet emails are `@afacademy.af.edu`.
 - Supabase email confirmation must stay OFF (free-tier mail is rate-limited and the confirm link breaks).
-- Government material: the user's global rule forbids committing government-owned files without approval.
-  The 715A artwork and the AFCW directory are treated as needing the user's sign-off before being published.
+- Government material stays out of the public repo (user's global rule). The 715A artwork lives in Supabase
+  behind the academy login (user's choice, 2026-10-29); it is still in old git history unless that is rewritten.
+  The AFCW directory SQL is generated locally and not loaded until the user approves.

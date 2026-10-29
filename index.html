@@ -649,7 +649,7 @@
       savePref();
       if (loadedFor !== currentUser.id) { loadedFor = currentUser.id; loadDraft(); loadBullets(); loadPositions(); }
     } else {
-      currentUser = null; loadedFor = null; store = []; POSITIONS = null;
+      currentUser = null; loadedFor = null; store = []; POSITIONS = null; formCache = null;
       $("#appRoot").hidden = true;
       $("#authGate").hidden = false;
     }
@@ -1194,6 +1194,19 @@
     var last = clean(parts[0]) || "LASTNAME", first = clean((parts[1] || "").trim().split(/\s+/)[0]) || "FIRSTNAME";
     return last + "_" + first + "_USAFA715A.pdf";
   }
+  // The form artwork is government material, so it isn't in the public site: it lives in Supabase
+  // (table `forms`, built by tools/build_form_sql.py) and only signed-in academy accounts can read it.
+  var formCache = null;
+  function formBytes() {
+    if (formCache) return Promise.resolve(formCache.slice(0));
+    return sb.from("forms").select("data").eq("name", "usafa715a").single().then(function (res) {
+      if (res.error || !res.data) throw new Error("the form didn't load — sign out and back in, then try again");
+      var bin = atob(res.data.data), out = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      formCache = out;
+      return out.slice(0);
+    });
+  }
   function download715() {
     if (!window.PDFLib) { toast("PDF tool still loading — try again in a moment"); return; }
     var btn = $("#download715"); btn.disabled = true;
@@ -1203,10 +1216,7 @@
     CATS.forEach(function (c) { values[c.key] = sectionText(c); });
     var multi = { duty_desc: 1, s1: 1, s2: 1, s3: 1, s4: 1 };
 
-    fetch("usafa715a-fillable.pdf").then(function (r) {
-      if (!r.ok) throw new Error("form file missing");
-      return r.arrayBuffer();
-    }).then(function (bytes) {
+    formBytes().then(function (bytes) {
       return PDFLib.PDFDocument.load(bytes);
     }).then(function (pdf) {
       return formFont(pdf).then(function (font) {
