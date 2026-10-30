@@ -118,9 +118,38 @@ def add_check(page, name, rect):
     w.rect = rect
     w.border_width = 0
     w.fill_color = None
-    w.button_caption = "8"  # ZapfDingbats cross, matching the official X mark
     w.field_value = False
     page.add_widget(w)
+
+
+# The official form's check mark, copied from a checked 715A: two black diagonals, 0.6pt wide,
+# butt caps, inset 0.48pt from the 10pt box (coordinates in the box's own space, origin bottom-left).
+CHECK_X = b"q 0 0 0 RG 0.6 w 0 J 0 j 10 M 0.48 9.56 m 9.48 0.56 l S 9.48 9.56 m 0.48 0.56 l S Q"
+
+
+def set_check_appearances(doc):
+    """Give every checkbox the form's own X when checked and nothing when unchecked.
+
+    Without an explicit checked appearance, each viewer draws its own default mark (a check or a
+    heavy cross) when the box is clicked. The same streams are used for the pressed state so the
+    box doesn't flash a different look while clicking.
+    """
+    form = "<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << >> >>"
+    on, off = doc.get_new_xref(), doc.get_new_xref()
+    doc.update_object(on, form)
+    doc.update_stream(on, CHECK_X)
+    doc.update_object(off, form)
+    doc.update_stream(off, b" ")
+    n = 0
+    for page in doc:
+        for w in page.widgets():
+            if w.field_type == pymupdf.PDF_WIDGET_TYPE_CHECKBOX:
+                states = f"<< /Yes {on} 0 R /Off {off} 0 R >>"
+                doc.xref_set_key(w.xref, "AP", f"<< /N {states} /D {states} >>")
+                doc.xref_set_key(w.xref, "MK", "<< /CA (8) >>")       # fallback if a viewer redraws
+                doc.xref_set_key(w.xref, "DA", "(0 g /ZaDb 0 Tf)")
+                n += 1
+    print("checkbox appearances set:", n)
 
 
 def add_sig(page, name, rect):
@@ -290,6 +319,7 @@ def main(flat_pdf, official_pdf, out_pdf):
         if pno == 1:
             for name, r in ROLES:
                 add_text(page, name, r)
+    set_check_appearances(doc)
 
     doc.set_metadata({"title": "USAFA Form 715A (fillable copy)", "author": "", "subject": "",
                       "keywords": "", "creator": "Falcon Bullets", "producer": "Falcon Bullets"})
